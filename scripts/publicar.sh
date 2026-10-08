@@ -11,6 +11,10 @@ STATICRYPT_PASSWORD="$PAINEL_SENHA" npm run -s proteger
 rm -rf dist
 if grep -q "product_title" site/index.html; then echo "ERRO: a página saiu sem criptografia, publicação cancelada"; rm -rf site; exit 1; fi
 touch site/.nojekyll
+cp assets/favicon.png assets/apple-touch-icon.png site/
+# ícone na aba do navegador também na tela de senha
+sed -i 's#</head>#<link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"></head>#' site/index.html
+grep -q 'rel="icon"' site/index.html || { echo "ERRO: ícone não entrou na página"; exit 1; }
 printf 'User-agent: *\nDisallow: /\n' > site/robots.txt
 ORIGEM="$(git remote get-url origin)"
 cd site
