@@ -243,11 +243,15 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <div class="pm-card-head">
       <div>
         <h2 id="estados-titulo">Vendas por estado</h2>
-        <p class="pm-note">Estado de entrega do pedido. Embaixo de cada valor aparece a variação contra o mesmo mês do ano anterior. As cores destacam as maiores altas e quedas em reais contra o mês anterior do mesmo ano. O mês em andamento não entra no destaque, porque ainda está incompleto.</p>
+        <p class="pm-note">Quanto cada estado de entrega representa no total do mês. Embaixo da participação aparece quantos <b>pontos percentuais (p.p.)</b> ela subiu ou caiu na comparação escolhida ao lado. As cores destacam as maiores mudanças. Passe o mouse numa célula para ver o valor em reais.</p>
       </div>
       <div class="pm-controls">
         <select class="pm-select" id="sel-ano-estados" aria-label="Ano" data-source="estados_mes"></select>
-        <select class="pm-select pm-metrica-sel" id="sel-metrica-estados" aria-label="Medida"></select>
+        <select class="pm-select" id="sel-metrica-estados" aria-label="Medida"></select>
+        <div class="pm-seg" id="seg-cmp-estados" aria-label="Comparar com">
+          <button type="button" data-c="mes">vs. mês anterior</button>
+          <button type="button" data-c="ano">vs. ano anterior</button>
+        </div>
       </div>
     </div>
     <div class="pm-legend-hl" id="legenda-estados"></div>
@@ -464,44 +468,55 @@ dash.calc('linhas', {
 });
 
 dash.calc('estados_mes', {
-  title: 'Vendas por estado e mês',
-  description: 'Totais por estado de entrega em cada mês e ano, com a variação contra o mesmo mês do ano anterior (mesmos dias no mês em andamento) e contra o mês anterior do mesmo ano.',
+  title: 'Participação dos estados por mês',
+  description: 'Valor e participação de cada estado de entrega no total do mês e do ano, com a diferença em pontos percentuais contra o mesmo mês do ano anterior (mesmos dias no mês em andamento) e contra o mês anterior.',
   inputs: ['estados', 'estados_ly'],
   fn: (estados, estados_ly) => {
-    const tot = (r) => ({ pedidos: r.orders || 0, pecas: r.net_items_sold || 0, bruto: r.gross_sales || 0, descontos: 0 - (r.discounts || 0), devolucoes: 0 - (r.sales_reversals || 0), receita: r.net_sales || 0, frete: r.shipping_charges || 0, cmv: r.cost_of_goods_sold || 0, margem: r.gross_profit || 0 });
-    const zero = () => ({ pedidos: 0, pecas: 0, bruto: 0, descontos: 0, devolucoes: 0, receita: 0, frete: 0, cmv: 0, margem: 0 });
-    const soma = (lista) => lista.reduce((a, b) => { for (const k in b) a[k] += b[k]; return a; }, zero());
-    const rd = (x) => Math.round(x * 100) / 100;
-    const gmv = (t) => t.bruto - t.descontos + t.frete;
-    const vr = (a, b) => (b ? a / b - 1 : null);
-    const met = (t) => ({ pedidos: t.pedidos, pecas: t.pecas, gmv: rd(gmv(t)), devolucoes: rd(t.devolucoes), receita: rd(t.receita), frete: rd(t.frete), descontos: rd(t.descontos), cmv: rd(t.cmv), margem: rd(t.margem), margem_pct: t.receita ? t.margem / t.receita : null, ticket: t.pedidos ? rd(gmv(t) / t.pedidos) : null });
-    const compara = (a, b, pref, o) => { for (const k of Object.keys(a)) o[pref + k] = !b || a[k] == null || b[k] == null ? null : k.endsWith('_pct') ? a[k] - b[k] : vr(a[k], b[k]); };
-    const junta = (lista) => { const m = new Map(); for (const r of lista) { const k = (r.shipping_region ? String(r.shipping_region).trim() : 'Sem estado') + '|' + String(r.month).slice(0, 7); m.set(k, m.has(k) ? soma([m.get(k), tot(r)]) : tot(r)); } return m; };
+    const K = ['gmv', 'receita', 'pecas', 'pedidos', 'devolucoes', 'margem', 'frete'];
+    const val = (r) => ({ gmv: (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0), receita: r.net_sales || 0, pecas: r.net_items_sold || 0, pedidos: r.orders || 0, devolucoes: 0 - (r.sales_reversals || 0), margem: r.gross_profit || 0, frete: r.shipping_charges || 0 });
+    const zero = () => Object.fromEntries(K.map((k) => [k, 0]));
+    const add = (a, b) => { for (const k of K) a[k] += b[k]; return a; };
+    const junta = (lista) => { const m = new Map(); for (const r of lista) { const k = (r.shipping_region ? String(r.shipping_region).trim() : 'Sem estado') + '|' + String(r.month).slice(0, 7); m.set(k, add(m.get(k) || zero(), val(r))); } return m; };
     const A = junta(estados), LY = junta(estados_ly);
+    const totalDe = (map, filtro) => { const t = zero(); for (const [k, v] of map) if (filtro(k)) add(t, v); return t; };
     const meses = [...new Set([...A.keys()].map((k) => k.split('|')[1]))].sort();
-    const atual = meses[meses.length - 1];
-    const estadosLista = [...new Set([...A.keys()].map((k) => k.split('|')[0]))];
+    const atual = meses[meses.length - 1], anoAtual = atual ? atual.slice(0, 4) : '';
+    const lista = [...new Set([...A.keys()].map((k) => k.split('|')[0]))];
     const anos = [...new Set(meses.map((m) => m.slice(0, 4)))];
+    const cache = new Map();
+    const tot = (map, chave, filtro) => { if (!cache.has(chave)) cache.set(chave, totalDe(map, filtro)); return cache.get(chave); };
+    const sh = (v, t, k) => (t && t[k] ? v[k] / t[k] : null);
+    const rd = (x) => Math.round(x * 100) / 100;
     const out = [];
-    for (const e of estadosLista) for (const y of anos) {
-      const doAno = [];
+    for (const e of lista) for (const y of anos) {
       for (let n = 1; n <= 12; n++) {
         const m = y + '-' + String(n).padStart(2, '0');
         if (m > atual || !meses.includes(m)) continue;
-        const t = A.get(e + '|' + m) || zero(); doAno.push(t);
-        const mAnt = (+y - 1) + m.slice(4);
-        const ant = m === atual ? LY.get(e + '|' + mAnt) : A.get(e + '|' + mAnt);
-        const prev = n > 1 ? A.get(e + '|' + y + '-' + String(n - 1).padStart(2, '0')) || zero() : null;
-        const a = met(t), o = { id: e + '|' + m, estado: e, ano: y, mes: m.slice(5), parcial: m === atual, ...a };
-        compara(a, ant ? met(ant) : null, 'var_', o);
-        compara(a, prev && m !== atual ? met(prev) : null, 'mom_', o);
-        for (const k of Object.keys(a)) o['dif_' + k] = prev && m !== atual && a[k] != null && met(prev)[k] != null ? a[k] - met(prev)[k] : null;
+        const mAnt = (+y - 1) + m.slice(4), mPrev = n > 1 ? y + '-' + String(n - 1).padStart(2, '0') : null;
+        const srcAnt = m === atual ? LY : A;
+        const v = A.get(e + '|' + m) || zero(), T = tot(A, 'A' + m, (k) => k.endsWith('|' + m));
+        const vAnt = srcAnt.get(e + '|' + mAnt), TAnt = tot(srcAnt, (m === atual ? 'L' : 'A') + mAnt, (k) => k.endsWith('|' + mAnt));
+        const vPrev = mPrev ? A.get(e + '|' + mPrev) || zero() : null, TPrev = mPrev ? tot(A, 'A' + mPrev, (k) => k.endsWith('|' + mPrev)) : null;
+        const o = { id: e + '|' + m, estado: e, ano: y, mes: m.slice(5), parcial: m === atual };
+        for (const k of K) {
+          o[k] = rd(v[k]); o['sh_' + k] = sh(v, T, k);
+          const a = vAnt ? sh(vAnt, TAnt, k) : (TAnt && TAnt[k] ? 0 : null);
+          const p = vPrev ? sh(vPrev, TPrev, k) : null;
+          o['ppa_' + k] = o['sh_' + k] == null || a == null ? null : o['sh_' + k] - a;
+          o['ppm_' + k] = o['sh_' + k] == null || p == null ? null : o['sh_' + k] - p;
+        }
         out.push(o);
       }
-      const t = soma(doAno);
-      const antAno = y === (atual || '').slice(0, 4) ? soma([...LY.entries()].filter(([k]) => k.startsWith(e + '|')).map(([, v]) => v)) : soma([...A.entries()].filter(([k]) => k.startsWith(e + '|' + (+y - 1) + '-')).map(([, v]) => v));
-      const a = met(t), o = { id: e + '|' + y + '-total', estado: e, ano: y, mes: 'total', parcial: false, ...a };
-      compara(a, antAno.bruto || antAno.pecas ? met(antAno) : null, 'var_', o);
+      const v = totalDe(A, (k) => k.startsWith(e + '|' + y + '-')), T = tot(A, 'Y' + y, (k) => k.includes('|' + y + '-'));
+      const srcAnt = y === anoAtual ? LY : A, prefAnt = (+y - 1) + '-';
+      const vAnt = totalDe(srcAnt, (k) => k.startsWith(e + '|' + prefAnt)), TAnt = tot(srcAnt, (y === anoAtual ? 'LY' : 'Y') + prefAnt, (k) => k.includes('|' + prefAnt));
+      const o = { id: e + '|' + y + '-total', estado: e, ano: y, mes: 'total', parcial: false };
+      for (const k of K) {
+        o[k] = rd(v[k]); o['sh_' + k] = sh(v, T, k);
+        const a = TAnt[k] ? vAnt[k] / TAnt[k] : null;
+        o['ppa_' + k] = o['sh_' + k] == null || a == null ? null : o['sh_' + k] - a;
+        o['ppm_' + k] = null;
+      }
       out.push(o);
     }
     return out;
@@ -843,6 +858,10 @@ dash.calc('giro', {
     dash.setLink(a);
   };
   document.getElementById('abas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { mostraAba(b.dataset.aba); draw(); } });
+  const METRICAS_EST = [['gmv', 'GMV'], ['receita', 'Receita líquida'], ['pecas', 'Peças'], ['pedidos', 'Pedidos'], ['devolucoes', 'Devoluções'], ['margem', 'Margem bruta'], ['frete', 'Frete cobrado']];
+  document.getElementById('sel-metrica-estados').replaceChildren(...METRICAS_EST.map(([v, t]) => new Option(t, v)));
+  st.ec = 'mes';
+  document.getElementById('seg-cmp-estados').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.ec = b.dataset.c; drawEstados(); } });
   document.querySelectorAll('.pm-metrica-sel').forEach((sel) => sel.replaceChildren(...METRICAS.map(([v, t]) => new Option(t, v))));
   document.getElementById('sel-metrica-mes-ano').addEventListener('change', (e) => { st.mm = e.target.value; draw(); });
   document.getElementById('sel-metrica-estados').addEventListener('change', (e) => { st.em = e.target.value; drawEstados(); });
@@ -884,45 +903,49 @@ dash.calc('giro', {
 
   let EM = [];
   function drawEstados() {
-    const m = st.em, nome = METRICAS.find((x) => x[0] === m)[1];
+    const m = st.em, nome = METRICAS_EST.find((x) => x[0] === m)[1], cmp = st.ec === 'ano' ? 'ppa_' : 'ppm_', rot = st.ec === 'ano' ? 'vs. ano ant.' : 'vs. mês ant.';
+    pressed('#seg-cmp-estados', 'c', st.ec);
     document.getElementById('sel-metrica-estados').value = m;
     const anos = [...new Set(EM.map((r) => r.ano))].sort().reverse();
     const sy = document.getElementById('sel-ano-estados');
     sy.replaceChildren(...anos.map((a) => new Option(a, a)));
     if (!st.ey || !anos.includes(st.ey)) st.ey = anos[0];
     if (st.ey) sy.value = st.ey;
-    document.getElementById('estados-titulo').textContent = nome + ' por estado em ' + (st.ey || '');
+    document.getElementById('estados-titulo').textContent = 'Participação no ' + nome + ' por estado em ' + (st.ey || '');
     const doAno = EM.filter((r) => r.ano === st.ey);
     const meses = [...new Set(doAno.filter((r) => r.mes !== 'total').map((r) => r.mes))].sort();
-    const totais = doAno.filter((r) => r.mes === 'total');
-    let estados = totais.sort((a, b) => (b[m] ?? -1e15) - (a[m] ?? -1e15)).map((r) => r.estado);
+    let estados = doAno.filter((r) => r.mes === 'total').sort((a, b) => (b['sh_' + m] ?? -1) - (a['sh_' + m] ?? -1)).map((r) => r.estado);
     if (st.eq) estados = estados.filter((e) => e.toLowerCase().includes(st.eq));
     const by = new Map(doAno.map((r) => [r.estado + '|' + r.mes, r]));
-    // destaque: maiores diferenças contra o mês anterior (em valor absoluto da métrica)
-    const difs = doAno.filter((r) => r.mes !== 'total' && r['dif_' + m] != null && r['dif_' + m] !== 0).sort((a, b) => b['dif_' + m] - a['dif_' + m]);
-    const N = Math.min(8, Math.floor(difs.length / 4));
-    const altas = difs.filter((r) => r['dif_' + m] > 0).slice(0, N), quedas = difs.filter((r) => r['dif_' + m] < 0).slice(-N).reverse();
+    const cand = doAno.filter((r) => r.mes !== 'total' && r[cmp + m] != null && Math.abs(r[cmp + m]) >= 0.005).sort((a, b) => b[cmp + m] - a[cmp + m]);
+    const N = Math.min(8, Math.ceil(cand.length / 6));
     const hl = new Map();
-    altas.forEach((r, i) => hl.set(r.id, `color-mix(in srgb, var(--color-ok) ${Math.round(34 - i * 3)}%, transparent)`));
-    quedas.forEach((r, i) => hl.set(r.id, `color-mix(in srgb, var(--color-bad) ${Math.round(34 - i * 3)}%, transparent)`));
+    cand.filter((r) => r[cmp + m] > 0).slice(0, N).forEach((r, i) => hl.set(r.id, `color-mix(in srgb, var(--color-ok) ${34 - i * 3}%, transparent)`));
+    cand.filter((r) => r[cmp + m] < 0).slice(-N).reverse().forEach((r, i) => hl.set(r.id, `color-mix(in srgb, var(--color-bad) ${34 - i * 3}%, transparent)`));
     const leg = document.getElementById('legenda-estados'); leg.replaceChildren();
-    for (const [c, t] of [['var(--color-ok)', 'Maiores altas contra o mês anterior'], ['var(--color-bad)', 'Maiores quedas contra o mês anterior']]) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = `color-mix(in srgb, ${c} 30%, transparent)`; s.append(i, t); leg.appendChild(s); }
+    for (const [c, t] of [['var(--color-ok)', 'Maiores ganhos de participação ' + rot], ['var(--color-bad)', 'Maiores perdas de participação ' + rot]]) { const s2 = document.createElement('span'); const i2 = document.createElement('i'); i2.style.background = `color-mix(in srgb, ${c} 30%, transparent)`; s2.append(i2, t); leg.appendChild(s2); }
     const table = document.getElementById('tabela-estados');
     const hr = document.createElement('tr');
     const th0 = document.createElement('th'); th0.className = 'pm-first'; th0.textContent = 'Estado'; hr.appendChild(th0);
     for (const mm of meses) { const th = document.createElement('th'); const r0 = doAno.find((r) => r.mes === mm); th.textContent = nomeMes(st.ey + '-' + mm, { month: 'short' }).replace('.', '') + (r0 && r0.parcial ? '*' : ''); hr.appendChild(th); }
-    const tt = document.createElement('th'); tt.className = 'pm-sep'; tt.textContent = 'Total do ano'; hr.appendChild(tt);
+    const tt = document.createElement('th'); tt.className = 'pm-sep'; tt.textContent = 'Ano (vs. ano ant.)'; hr.appendChild(tt);
     table.querySelector('thead').replaceChildren(hr);
+    const p1 = new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const ppf = (v) => (Math.abs(v) < 0.0005 ? '' : v > 0 ? '+' : '−') + new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(v * 100)) + ' p.p.';
     const linhas = estados.map((e) => {
       const tr = document.createElement('tr'); tr.setAttribute('data-key', e);
       tr.appendChild(cel(e, 'pm-txt pm-first'));
       for (const mm of [...meses, 'total']) {
         const r = by.get(e + '|' + mm);
         const td = document.createElement('td'); if (mm === 'total') td.className = 'pm-sep';
-        td.textContent = r ? fmt(m, r[m]) : '—';
+        const s0 = r ? r['sh_' + m] : null;
+        td.textContent = s0 == null ? '—' : p1.format(s0);
         if (r) {
-          const v = r['var_' + m]; const sm = document.createElement('small'); sm.className = corVar(m, v); sm.textContent = v == null ? '' : fmt('var_' + m, v) + ' a/a'; td.appendChild(sm);
-          if (hl.has(r.id)) { td.style.background = hl.get(r.id); td.title = 'Contra o mês anterior: ' + fmt('dif_' + m, r['dif_' + m]) + ' (' + fmt('mom_' + m, r['mom_' + m]) + ')'; }
+          const d = mm === 'total' ? r['ppa_' + m] : r[cmp + m];
+          const sm = document.createElement('small'); sm.className = d == null || Math.abs(d) < 0.0005 ? '' : (d > 0) === (m !== 'devolucoes') ? 'pm-up' : 'pm-down';
+          sm.textContent = d == null ? '' : ppf(d); td.appendChild(sm);
+          if (hl.has(r.id)) td.style.background = hl.get(r.id);
+          td.title = [fmt(m, r[m]) + ' (' + (s0 == null ? '—' : p1.format(s0)) + ' do total)', r['ppa_' + m] != null ? 'vs. ano anterior: ' + ppf(r['ppa_' + m]) : '', r['ppm_' + m] != null ? 'vs. mês anterior: ' + ppf(r['ppm_' + m]) : ''].filter(Boolean).join('\n');
         }
         tr.appendChild(td);
       }
