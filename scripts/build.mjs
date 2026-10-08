@@ -35,6 +35,8 @@ export function consultas() {
     ontem: `FROM sales SHOW ${M_VENDAS} SINCE ${ref} UNTIL ${ref}`,
     produtos_ontem: `FROM sales SHOW ${M_PROD} GROUP BY ${DIM} SINCE ${ref} UNTIL ${ref} ORDER BY net_sales DESC LIMIT 10000`,
     estoque_ontem: `FROM inventory SHOW ${M_EST} GROUP BY ${DIM} SINCE ${ref} UNTIL ${ref} ORDER BY inventory_units_sold DESC LIMIT 10000`,
+    estados: `FROM sales SHOW ${M_VENDAS} GROUP BY month, shipping_region SINCE 2022-01-01 UNTIL ${ref} ORDER BY month ASC LIMIT 20000`,
+    estados_ly: `FROM sales SHOW ${M_VENDAS} GROUP BY month, shipping_region SINCE ${anoRef - 1}-01-01 UNTIL ${refAnoPassado} ORDER BY month ASC LIMIT 20000`,
   };
   for (let y = 2022; y <= anoRef; y++) q[`produtos_${y}`] = `FROM sales SHOW ${M_PROD} GROUP BY month, ${DIM} SINCE ${y}-01-01 UNTIL ${fim(y)} ORDER BY month ASC LIMIT 20000`;
   for (let y = 2023; y <= anoRef; y++) q[`estoque_${y}`] = `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE ${y}-01-01 UNTIL ${fim(y)} ORDER BY month ASC LIMIT 20000`;
@@ -112,7 +114,7 @@ async function main() {
   const dados = {
     gerado_em: new Date().toISOString(),
     referencia: ref,
-    mensal: R.mensal, ano_passado: R.ano_passado, ontem: R.ontem,
+    mensal: R.mensal, ano_passado: R.ano_passado, ontem: R.ontem, estados: R.estados, estados_ly: R.estados_ly,
     produtos: compacta(anos('produtos_'), P),
     produtos_ontem: compacta(R.produtos_ontem.map((r) => ({ month: ref, ...r })), P),
     estoque: compacta(anos('estoque_'), E),
