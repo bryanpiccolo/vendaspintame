@@ -4,3 +4,4 @@ site/
 # respostas reais do Shopify usadas em teste local: nunca subir
 teste/fixtures/
 .env
+.dados/
