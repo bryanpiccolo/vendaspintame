@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Vendas Pinta Me</title>
+<script>/*D3*/</script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+.pm { font-family: var(--font-anthropic-sans); display: flex; flex-direction: column; gap: var(--cds-gap-lg); }
+.pm-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; }
+.pm-take { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); line-height: 1.6; }
+.pm-take span { color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.pm-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; }
+.pm-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; flex-wrap: wrap; }
+.pm-seg button { font: inherit; font-size: var(--cds-font-size-caption); background: transparent; color: var(--color-fg-muted); border: 0; padding: var(--cds-pad-xs) var(--cds-pad-sm); cursor: pointer; }
+.pm-seg button[aria-pressed="true"] { background: var(--color-panel); color: var(--color-fg); font-weight: var(--cds-font-weight-medium); box-shadow: inset 0 0 0 1px var(--color-border-line); }
+.pm-select, .pm-search { font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); }
+.pm-select.pm-on { border-color: var(--color-fg); }
+.pm-search { min-width: 0; flex: 1 1 12rem; max-width: 20rem; }
+.pm-window { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: var(--cds-gap-md); }
+.pm-kpi, .pm-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); }
+.pm-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pm-kpi-value { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin-top: var(--cds-gap-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pm-kpi-delta { margin-top: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.pm-up { color: var(--color-ok); } .pm-down { color: var(--color-bad); }
+.pm-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cds-gap-sm); align-items: flex-start; margin-bottom: var(--cds-gap-md); }
+.pm-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.pm-note { margin: var(--cds-gap-xs) 0 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.5; }
+.pm-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-bottom: var(--cds-gap-sm); }
+.pm-legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -1px; }
+.pm-chart { position: relative; min-height: 260px; }
+.pm-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 2; }
+.pm-tip .pm-tip-h { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.pm-tip i { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 2px; margin-right: 0.35rem; }
+.pm-tools { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; margin-bottom: var(--cds-gap-md); }
+.pm-tablebox { max-height: 34rem; overflow: auto; min-height: 8rem; }
+.pm-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.pm-table th { position: sticky; top: 0; background: var(--color-panel); text-align: right; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); border-bottom: 1px solid var(--color-border-line); padding: 0; z-index: 1; }
+.pm-table th button { font: inherit; color: inherit; background: none; border: 0; padding: var(--cds-pad-xs) var(--cds-pad-sm); cursor: pointer; width: 100%; text-align: inherit; white-space: nowrap; }
+.pm-table th.pm-txt, .pm-table td.pm-txt { text-align: left; }
+.pm-table td { text-align: right; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.pm-table td.pm-txt { white-space: normal; min-width: 9rem; }
+.pm-table td.pm-size { min-width: 0; }
+.pm-bar { position: relative; }
+.pm-bar i { position: absolute; right: var(--cds-pad-sm); bottom: 2px; height: 3px; border-radius: 2px; background: var(--cds-chart-muted); }
+.pm-flag { display: inline-block; margin-left: var(--cds-gap-xs); font-size: 0.7rem; color: var(--color-warn); border: 1px solid currentColor; border-radius: 999px; padding: 0 0.35rem; vertical-align: 1px; }
+.pm-bad { color: var(--color-bad); }
+.pm-foot { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.6; }
+.pm b { font-weight: var(--cds-font-weight-medium); }
+.pm-fail { display: flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: inherit; height: 100%; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pm-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+@media (max-width: 720px) { .pm-hide-sm { display: none; } }
+
+:root { color-scheme: light dark;
+  --font-anthropic-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-anthropic-serif: Georgia, 'Times New Roman', serif;
+  --color-bg: #faf9f7; --color-panel: #ffffff; --color-fg: #1f1e1c; --color-fg-muted: #6b6862; --color-border-line: #e4e1dc;
+  --color-ok: #1f7a4d; --color-warn: #a35c00; --color-bad: #b42318;
+  --cds-chart-muted: #c9c4bc; --cds-chart-axis: #b8b3ab; --cds-chart-grid: #ece9e4;
+  --cds-surface-popover: #ffffff; --cds-border: #dcd8d2; --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.12); --cds-text-secondary: #6b6862;
+  --serie-1: #3b6fd8;
+  --cds-radius: 10px; --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 20px;
+  --cds-font-size-caption: 0.8rem; --cds-font-size-body: 0.95rem; --cds-font-size-heading: 1.05rem; --cds-font-size-title: 1.6rem;
+  --cds-font-weight-medium: 600; --cds-dur-slow: .3s; }
+@media (prefers-color-scheme: dark) { :root {
+  --color-bg: #191817; --color-panel: #222120; --color-fg: #ecebe8; --color-fg-muted: #a19d96; --color-border-line: #3a3835;
+  --color-ok: #5cc28f; --color-warn: #e0a04a; --color-bad: #f07167;
+  --cds-chart-muted: #5b5853; --cds-chart-axis: #6a6762; --cds-chart-grid: #2e2d2b;
+  --cds-surface-popover: #2a2928; --cds-border: #44423f; --cds-text-secondary: #a19d96; --serie-1: #7ea2f0; } }
+html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+#dash-root { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+.dash-skeleton { color: transparent !important; background: var(--color-border-line); border-radius: 4px; }
+.pm-chart.dash-skeleton { background: none; }
+</style>
+
+<div class="pm">
+  <header id="topo">
+    <h1 class="pm-title">Vendas por produto e tamanho</h1>
+    <p class="pm-window" id="atualizacao"></p>
+    <p class="pm-take" id="destaque">
+      Ontem: <span class="dash-skeleton" data-source="periodos" data-field="pecas" data-where="periodo=ontem">—</span> peças e
+      <span class="dash-skeleton" data-source="periodos" data-field="gmv" data-where="periodo=ontem">—</span> de GMV.
+      No mês até ontem: <span class="dash-skeleton pm-h-mes" data-source="periodos" data-field="gmv">—</span> de GMV
+      (<span class="dash-skeleton pm-h-mes" data-source="periodos" data-field="var_gmv">—</span> vs. o mesmo período do ano passado).
+      No ano: <span class="dash-skeleton pm-h-ano" data-source="periodos" data-field="gmv">—</span>
+      (<span class="dash-skeleton pm-h-ano" data-source="periodos" data-field="var_gmv">—</span>).
+    </p>
+  </header>
+
+  <div class="pm-controls" id="periodo">
+    <div class="pm-seg" id="seg-periodo" aria-label="Período">
+      <button type="button" data-p="ontem">Ontem</button>
+      <button type="button" data-p="mes">Mês atual</button>
+      <button type="button" data-p="ano">Ano atual</button>
+    </div>
+    <select class="pm-select" id="sel-periodo" aria-label="Escolher mês ou ano" data-source="periodos"></select>
+  </div>
+  <p class="pm-window" id="janela"></p>
+
+  <section class="pm-cards" id="indicadores">
+    <div class="pm-kpi"><div class="pm-kpi-label">Peças vendidas</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="pecas">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_pecas"></span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">GMV (com frete)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="gmv">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_gmv"></span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Devoluções</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="devolucoes">—</div><div class="pm-kpi-delta"><span class="pm-k pm-pctdev" data-source="periodos" data-field="devolucoes_pct"></span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Receita líquida</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="receita">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_receita"></span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Custo dos produtos (CMV)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="cmv">—</div><div class="pm-kpi-delta"></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_margem"></span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta %</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem_pct">—</div><div class="pm-kpi-delta"></div></div>
+  </section>
+
+  <section class="pm-card" id="mes-a-mes">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="grafico-titulo">Mês a mês contra o ano anterior</h2>
+        <p class="pm-note">O número sobre cada par de barras é a variação contra o mesmo mês do ano anterior. No mês atual, a comparação é com os mesmos dias do ano passado. Clique num mês para ver o detalhe dele.</p>
+      </div>
+      <div class="pm-controls">
+        <select class="pm-select" id="sel-ano-grafico" aria-label="Ano do gráfico" data-source="periodos"></select>
+        <div class="pm-seg" id="seg-metrica" aria-label="Medida">
+          <button type="button" data-m="gmv">GMV</button>
+          <button type="button" data-m="receita">Receita</button>
+          <button type="button" data-m="pecas">Peças</button>
+        </div>
+      </div>
+    </div>
+    <div class="pm-legend" id="legenda"></div>
+    <div class="pm-chart" id="grafico-mensal" data-source="periodos"></div>
+  </section>
+
+  <section class="pm-card" id="detalhe">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="detalhe-titulo">Vendas por produto</h2>
+        <p class="pm-note" id="detalhe-janela"></p>
+      </div>
+      <select class="pm-select" id="sel-periodo-tabela" aria-label="Período da tabela" data-source="periodos"></select>
+    </div>
+    <div class="pm-tools">
+      <div class="pm-seg" id="seg-visao" aria-label="Agrupar por">
+        <button type="button" data-v="produto">Produto</button>
+        <button type="button" data-v="estampa">Estampa</button>
+        <button type="button" data-v="categoria">Categoria</button>
+        <button type="button" data-v="tamanho">Tamanho</button>
+        <button type="button" data-v="estampa_tamanho">Estampa × tamanho</button>
+        <button type="button" data-v="categoria_tamanho">Categoria × tamanho</button>
+        <button type="button" data-v="produto_tamanho">Produto × tamanho</button>
+      </div>
+      <div class="pm-seg" id="seg-metrica-tabela" aria-label="Medida da barra">
+        <button type="button" data-m="gmv">GMV</button>
+        <button type="button" data-m="receita">Receita</button>
+        <button type="button" data-m="pecas">Peças</button>
+      </div>
+      <input class="pm-search" id="busca" type="search" placeholder="Buscar produto, categoria ou tamanho" aria-label="Buscar">
+    </div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="tabela" data-source="linhas" data-row-key="id">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="pm-note" id="detalhe-frete">
+      Frete cobrado dos clientes no período: <span data-source="linhas" data-field="frete" data-where="id=total">—</span>. Ele entra no GMV dos indicadores lá em cima, mas não é atribuído a produto, então o GMV desta tabela é sem frete.
+      <span id="aviso-custo" hidden><span data-source="linhas" data-field="receita_sem_custo" data-where="id=total">—</span> de receita veio de itens vendidos quando a variante ainda não tinha custo no Shopify (marcados “sem custo”). O Shopify grava o custo no momento da venda, então essas vendas ficam sem margem mesmo que o custo seja preenchido depois.</span>
+    </p>
+  </section>
+
+  <section class="pm-card" id="sell-through">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="giro-titulo">Sell-through por estampa</h2>
+        <p class="pm-note"><span id="giro-janela"></span>. <b>Sell-through</b> = peças vendidas ÷ (peças vendidas + estoque no fim do período). Quanto maior, mais rápido o estoque gira. Compare itens com volume parecido: com pouco estoque o percentual sobe fácil.</p>
+      </div>
+      <select class="pm-select" id="sel-periodo-giro" aria-label="Período do sell-through" data-source="periodos"></select>
+    </div>
+    <div class="pm-tools">
+      <div class="pm-seg" id="seg-giro" aria-label="Agrupar sell-through por">
+        <button type="button" data-g="produto">Produto</button>
+        <button type="button" data-g="estampa">Estampa</button>
+        <button type="button" data-g="categoria">Categoria</button>
+        <button type="button" data-g="tamanho">Tamanho</button>
+        <button type="button" data-g="estampa_tamanho">Estampa × tamanho</button>
+        <button type="button" data-g="categoria_tamanho">Categoria × tamanho</button>
+        <button type="button" data-g="produto_tamanho">Produto × tamanho</button>
+      </div>
+      <input class="pm-search" id="busca-giro" type="search" placeholder="Buscar produto, categoria ou tamanho" aria-label="Buscar no sell-through">
+    </div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="tabela-giro" data-source="giro" data-row-key="id">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="pm-note">Peças vendidas aqui vêm do relatório de estoque (só itens com estoque controlado). Kits e produtos virtuais podem mostrar estoque inflado, e aí o sell-through fica subestimado.</p>
+  </section>
+
+  <p class="pm-foot" id="notas">
+    <b>GMV</b>: vendas brutas menos descontos, mais o frete pago pelos clientes. Devoluções não são abatidas.
+    <b>Devoluções</b>: valor de itens devolvidos ou cancelados após a venda.
+    <b>Receita líquida</b>: vendas brutas menos descontos e devoluções, sem frete.
+    <b>CMV</b>: custo por item cadastrado em cada variante no Shopify. <b>Margem bruta</b>: receita líquida menos CMV, como o Shopify calcula. <b>Margem %</b>: margem bruta ÷ receita líquida.
+    Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é o tipo de produto do cadastro do Shopify. <b>Estampa</b> é lida do nome do produto (Voa Passarinho, Viagem Colorida, Dia de Brincar, Pets, Alfabeto da PINTA com Caça-Palavras, Copa do Mundo com Futebol, Um Mergulho na Ilha, Frutaria, Natal, Tangram). <b>Tamanho</b> é lido do nome da variante (ex.: “04 / 06 (GRÁTIS)” → 04; “M (25-28)” → M). Itens sem tamanho aparecem como “Único”.
+    Antes de abril de 2025 muitos produtos ainda não tinham custo cadastrado, então a margem desses meses fica distorcida. Só vendas da loja Shopify. Datas no fuso da loja (Brasília). <b>Sell-through</b> de um ano usa o estoque do início do primeiro mês e do fim do último mês.
+  </p>
+</div>
+
+<script>
+const DADOS = /*DADOS*/null;
+window.dash = (() => {
+  const TXT = new Set(['product_type', 'product_title', 'product_variant_title']);
+  const abre = (c) => c.linhas.map((l) => Object.fromEntries(c.campos.map((f, i) => [f, TXT.has(f) ? c.dic[l[i]] : l[i]])));
+  const P = abre(DADOS.produtos), PO = abre(DADOS.produtos_ontem), E = abre(DADOS.estoque), EO = abre(DADOS.estoque_ontem);
+  const mes0 = 'm:' + DADOS.referencia.slice(0, 7);
+  let params = { periodo_produtos: mes0, periodo_estoque: mes0 };
+  const prod = (p) => p === 'ontem' ? PO : p.startsWith('m:') ? P.filter((r) => r.month === p.slice(2)) : P.filter((r) => r.month.startsWith(p.slice(2)));
+  const est = (p) => {
+    if (p === 'ontem') return EO;
+    if (p.startsWith('m:')) return E.filter((r) => r.month === p.slice(2));
+    const rs = E.filter((r) => r.month.startsWith(p.slice(2)));
+    const meses = [...new Set(rs.map((r) => r.month))].sort();
+    const ini = meses[0], fim = meses[meses.length - 1], acc = new Map();
+    for (const r of rs) {
+      const k = r.product_type + '\u0001' + r.product_title + '\u0001' + r.product_variant_title;
+      let a = acc.get(k);
+      if (!a) { a = { product_type: r.product_type, product_title: r.product_title, product_variant_title: r.product_variant_title, starting_inventory_units: 0, ending_inventory_units: 0, inventory_units_sold: 0 }; acc.set(k, a); }
+      a.inventory_units_sold += r.inventory_units_sold || 0;
+      if (r.month === ini) a.starting_inventory_units += r.starting_inventory_units || 0;
+      if (r.month === fim) a.ending_inventory_units += r.ending_inventory_units || 0;
+    }
+    return [...acc.values()];
+  };
+  const fontes = { mensal: () => DADOS.mensal, ano_passado: () => DADOS.ano_passado, ontem: () => DADOS.ontem, produtos: () => prod(params.periodo_produtos), estoque: () => est(params.periodo_estoque) };
+  const calcs = {}, cache = {}, ouvintes = [];
+  const valor = (id) => {
+    if (id in cache) return cache[id];
+    if (fontes[id]) return (cache[id] = fontes[id]());
+    const c = calcs[id];
+    return (cache[id] = c ? c.fn(...c.inputs.map(valor)) : null);
+  };
+  let agendado = false;
+  const avisa = () => { if (agendado) return; agendado = true; requestAnimationFrame(() => { agendado = false; ouvintes.forEach((f) => f()); }); };
+  let largura = window.innerWidth;
+  window.addEventListener('resize', () => { if (Math.abs(window.innerWidth - largura) > 20) { largura = window.innerWidth; avisa(); } });
+  return {
+    loader() {}, refresh() {}, setLink() {},
+    calc(id, c) { calcs[id] = c; },
+    data(id) { try { const d = valor(id); return d == null ? { status: 'missing', data: [] } : { status: 'ok', data: d }; } catch (e) { console.error(e); return { status: 'error', data: [], message: String(e) }; } },
+    onData(fn) { ouvintes.push(fn); fn(); },
+    params() { return { ...params }; },
+    setParams(o) { params = { ...params, ...o }; for (const k of Object.keys(cache)) delete cache[k]; avisa(); },
+    resetParams() {},
+    colors: ['var(--serie-1)'],
+  };
+})();
+</script>
+<script>
+(() => {
+  const d = (iso) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso + 'T12:00:00Z'));
+  const g = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(DADOS.gerado_em));
+  document.getElementById('atualizacao').textContent = 'Venda fechada até ' + d(DADOS.referencia) + ' · atualizado em ' + g;
+})();
+</script>
+<script>
+(() => {
+  const findTable = (x) => {
+    if (x == null) return null;
+    if (typeof x === 'string') {
+      try { return findTable(JSON.parse(x)); } catch (e) {
+        const i = x.indexOf('{"query"'), j = x.lastIndexOf('}');
+        if (i >= 0 && j > i) { try { return findTable(JSON.parse(x.slice(i, j + 1))); } catch (e2) { return null; } }
+        return null;
+      }
+    }
+    if (Array.isArray(x)) { for (const v of x) { const t = findTable(v && typeof v === 'object' && 'text' in v ? v.text : v); if (t) return t; } return null; }
+    if (typeof x === 'object') {
+      if (Array.isArray(x.rows) && Array.isArray(x.columns)) return x;
+      for (const k of ['content', 'result', 'structuredContent', 'text']) { if (k in x) { const t = findTable(x[k]); if (t) return t; } }
+    }
+    return null;
+  };
+  const load = ({ answer }) => {
+    const t = findTable(answer);
+    if (!t) {
+      const msg = typeof answer === 'string' ? answer.slice(0, 300) : (answer && (answer.error || answer.message)) || 'A resposta do Shopify não trouxe linhas';
+      throw new Error(String(msg));
+    }
+    if (!t.columns.length && typeof answer === 'string' && /error/i.test(answer)) throw new Error(answer.slice(0, 300));
+    const names = t.columns.map((c) => c.name);
+    const types = t.columns.map((c) => c.dataType);
+    const num = (v) => (v === '' || v == null ? null : Number(v));
+    const rows = t.rows.map((r) => Object.fromEntries(names.map((n, i) => [n, (types[i] === 'MONEY' || types[i] === 'INTEGER' || types[i] === 'NUMBER' || types[i] === 'PERCENT') ? num(r[i]) : r[i]])));
+    return { columns: names, rows };
+  };
+  const desc = 'Resposta do ShopifyQL (colunas + linhas em listas) virada em tabela, com valores e peças como números.';
+  for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque']) dash.loader(id, { description: desc, fn: load });
+})();
+
+dash.calc('periodos', {
+  title: 'Totais por período',
+  description: 'GMV, devoluções, receita, CMV e margem de ontem, de cada mês e de cada ano, com a variação contra o mesmo período do ano anterior (mesmos dias no mês e no ano em curso).',
+  inputs: ['mensal', 'ontem', 'ano_passado'],
+  fn: (mensal, ontem, ano_passado) => {
+    const tot = (r) => ({ pedidos: r.orders || 0, pecas: r.net_items_sold || 0, bruto: r.gross_sales || 0, descontos: 0 - (r.discounts || 0), devolucoes: 0 - (r.sales_reversals || 0), receita: r.net_sales || 0, frete: r.shipping_charges || 0, cmv: r.cost_of_goods_sold || 0, margem: r.gross_profit || 0 });
+    const soma = (lista) => lista.reduce((a, b) => { for (const k in b) a[k] = (a[k] || 0) + b[k]; return a; }, { pedidos: 0, pecas: 0, bruto: 0, descontos: 0, devolucoes: 0, receita: 0, frete: 0, cmv: 0, margem: 0 });
+    const vazio = (t) => !t || (t.bruto === 0 && t.pecas === 0 && t.receita === 0);
+    const rd = (x) => Math.round(x * 100) / 100;
+    const gmv = (t) => t.bruto - t.descontos + t.frete;
+    const vr = (a, b) => (b && b !== 0 ? a / b - 1 : null);
+    const linha = (periodo, t, ant) => ({
+      periodo, pedidos: t.pedidos, pecas: t.pecas, gmv: rd(gmv(t)), devolucoes: rd(t.devolucoes),
+      devolucoes_pct: t.bruto ? t.devolucoes / t.bruto : null,
+      receita: rd(t.receita), frete: rd(t.frete), descontos: rd(t.descontos), cmv: rd(t.cmv), margem: rd(t.margem),
+      margem_pct: t.receita ? t.margem / t.receita : null,
+      gmv_ant: ant ? rd(gmv(ant)) : null, receita_ant: ant ? rd(ant.receita) : null, pecas_ant: ant ? ant.pecas : null, margem_ant: ant ? rd(ant.margem) : null,
+      var_gmv: ant ? vr(gmv(t), gmv(ant)) : null, var_receita: ant ? vr(t.receita, ant.receita) : null,
+      var_pecas: ant ? vr(t.pecas, ant.pecas) : null, var_margem: ant ? vr(t.margem, ant.margem) : null,
+    });
+    const meses = new Map();
+    for (const r of mensal) meses.set(String(r.month).slice(0, 7), tot(r));
+    const chaves = [...meses.keys()].sort();
+    const atual = chaves[chaves.length - 1];
+    const lyMeses = ano_passado.map((r) => ({ m: String(r.month).slice(0, 7), t: tot(r) })).sort((a, b) => (a.m < b.m ? -1 : 1));
+    const lyMesAtual = lyMeses.length ? lyMeses[lyMeses.length - 1] : null;
+    const out = [];
+    for (const m of chaves) {
+      const y = +m.slice(0, 4), mm = m.slice(5);
+      const mAnt = (y - 1) + '-' + mm;
+      let ant = meses.get(mAnt);
+      if (m === atual) ant = lyMesAtual && lyMesAtual.m === mAnt ? lyMesAtual.t : null;
+      if (vazio(ant)) ant = null;
+      out.push(linha('m:' + m, meses.get(m), ant));
+    }
+    const anos = [...new Set(chaves.map((m) => m.slice(0, 4)))];
+    const anoAtual = atual ? atual.slice(0, 4) : null;
+    for (const a of anos) {
+      const t = soma(chaves.filter((m) => m.startsWith(a + '-')).map((m) => meses.get(m)));
+      const prev = String(+a - 1);
+      let ant = a === anoAtual ? soma(lyMeses.map((x) => x.t)) : soma(chaves.filter((m) => m.startsWith(prev + '-')).map((m) => meses.get(m)));
+      if (vazio(ant)) ant = null;
+      out.push(linha('a:' + a, t, ant));
+    }
+    out.push(linha('ontem', soma(ontem.map(tot)), null));
+    return out;
+  },
+});
+
+dash.calc('linhas', {
+  title: 'Vendas por produto, estampa, categoria e tamanho',
+  description: 'Soma peças, GMV sem frete, devoluções, receita, CMV e margem do período escolhido na tabela por produto, estampa, categoria, tamanho e combinações; tamanho lido do nome da variante e estampa do nome do produto.',
+  inputs: ['produtos'],
+  fn: (produtos) => {
+    const tamanho = (v) => {
+      if (!v || v === 'Default Title') return 'Único';
+      for (const p of String(v).split('/').map((s) => s.trim())) {
+        const m = p.match(/^(\d{1,2}|PP|P|M|G|GG|XG|XGG)(?:\s*\(\s*\d+\s*-\s*\d+\s*\))?$/i);
+        if (m) { const t = m[1].toUpperCase(); return /^\d$/.test(t) ? '0' + t : t; }
+      }
+      return 'Único';
+    };
+    const estampa = (t) => {
+      const x = String(t || '').toLowerCase();
+      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram']];
+      for (const [k, v] of regras) if (x.includes(k)) return v;
+      return 'Sem estampa';
+    };
+    const dims = ['produto', 'estampa', 'categoria', 'tamanho', 'estampa_tamanho', 'categoria_tamanho', 'produto_tamanho'];
+    const acc = new Map();
+    const total = { id: 'total', dim: 'total', estampa: '', categoria: '', produto: '', tamanho: '', pecas: 0, gmv: 0, devolucoes: 0, receita: 0, cmv: 0, margem: 0, frete: 0, receita_sem_custo: 0 };
+    for (const r of produtos) {
+      total.frete += r.shipping_charges || 0;
+      const temProduto = !!r.product_title;
+      const valor = (r.gross_sales || 0) + (r.discounts || 0);
+      if (!temProduto && !valor && !r.net_items_sold && !r.net_sales && !r.sales_reversals) continue;
+      const produto = temProduto ? String(r.product_title).replace(/\s+/g, ' ').trim() : '(sem produto)';
+      const categoria = r.product_type ? String(r.product_type).trim() : 'Sem categoria';
+      const tam = temProduto ? tamanho(r.product_variant_title) : '—';
+      const est = temProduto ? estampa(r.product_title) : '—';
+      const semCusto = r.cost_of_goods_sold == null;
+      for (const d of dims) {
+        const e = d.includes('estampa') ? est : '';
+        const c = d.includes('categoria') ? categoria : '';
+        const p = d.includes('produto') ? produto : '';
+        const t = d.includes('tamanho') ? tam : '';
+        const id = d + '|' + [e, c, p, t].filter(Boolean).join(' · ');
+        let a = acc.get(id);
+        if (!a) { a = { id, dim: d, estampa: e, categoria: c, produto: p, tamanho: t, pecas: 0, gmv: 0, devolucoes: 0, receita: 0, cmv: 0, margem: 0, frete: null, receita_sem_custo: 0 }; acc.set(id, a); }
+        a.pecas += r.net_items_sold || 0; a.gmv += valor; a.devolucoes += 0 - (r.sales_reversals || 0); a.receita += r.net_sales || 0;
+        if (semCusto) a.receita_sem_custo += r.net_sales || 0; else { a.cmv += r.cost_of_goods_sold; a.margem += r.gross_profit || 0; }
+      }
+      total.pecas += r.net_items_sold || 0; total.gmv += valor; total.devolucoes += 0 - (r.sales_reversals || 0); total.receita += r.net_sales || 0;
+      if (semCusto) total.receita_sem_custo += r.net_sales || 0; else { total.cmv += r.cost_of_goods_sold; total.margem += r.gross_profit || 0; }
+    }
+    const rd = (x) => (x == null ? null : Math.round(x * 100) / 100);
+    return [...acc.values(), total].map((a) => ({
+      id: a.id, dim: a.dim, estampa: a.estampa, categoria: a.categoria, produto: a.produto, tamanho: a.tamanho,
+      pecas: a.pecas, gmv: rd(a.gmv), devolucoes: rd(a.devolucoes), receita: rd(a.receita), cmv: rd(a.cmv), margem: rd(a.margem),
+      margem_pct: a.receita ? a.margem / a.receita : null, frete: rd(a.frete), receita_sem_custo: rd(a.receita_sem_custo),
+    }));
+  },
+});
+
+dash.calc('giro', {
+  title: 'Sell-through por grupo',
+  description: 'Soma peças vendidas e estoque inicial e final do período por produto, estampa, categoria, tamanho e combinações; sell-through = vendidas ÷ (vendidas + estoque final).',
+  inputs: ['estoque'],
+  fn: (estoque) => {
+    const estampa = (t) => {
+      const x = String(t || '').toLowerCase();
+      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram']];
+      for (const [k, v] of regras) if (x.includes(k)) return v;
+      return 'Sem estampa';
+    };
+    const tamanho = (v) => {
+      if (!v || v === 'Default Title') return 'Único';
+      for (const p of String(v).split('/').map((s) => s.trim())) {
+        const m = p.match(/^(\d{1,2}|PP|P|M|G|GG|XG|XGG)(?:\s*\(\s*\d+\s*-\s*\d+\s*\))?$/i);
+        if (m) { const t = m[1].toUpperCase(); return /^\d$/.test(t) ? '0' + t : t; }
+      }
+      return 'Único';
+    };
+    const dims = ['produto', 'estampa', 'categoria', 'tamanho', 'estampa_tamanho', 'categoria_tamanho', 'produto_tamanho'];
+    const acc = new Map();
+    for (const r of estoque) {
+      if (!r.product_title) continue;
+      const produto = String(r.product_title).replace(/\s+/g, ' ').trim();
+      const cat = r.product_type ? String(r.product_type).trim() : 'Sem categoria';
+      const est = estampa(produto), tam = tamanho(r.product_variant_title);
+      for (const d of dims) {
+        const e = d.includes('estampa') ? est : '', c = d.includes('categoria') ? cat : '', p = d.includes('produto') ? produto : '', t = d.includes('tamanho') ? tam : '';
+        const id = d + '|' + [e, c, p, t].filter(Boolean).join(' · ');
+        let a = acc.get(id);
+        if (!a) { a = { id, dim: d, estampa: e, categoria: c, produto: p, tamanho: t, vendidas: 0, estoque_inicial: 0, estoque_final: 0 }; acc.set(id, a); }
+        a.vendidas += r.inventory_units_sold || 0; a.estoque_inicial += r.starting_inventory_units || 0; a.estoque_final += r.ending_inventory_units || 0;
+      }
+    }
+    return [...acc.values()].map((a) => ({ ...a, sell_through: a.vendidas + a.estoque_final > 0 ? a.vendidas / (a.vendidas + a.estoque_final) : null }));
+  },
+});
+
+(() => {
+  const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const brlC = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 });
+  const int = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+  const pct = new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const sPct = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' });
+  const isPct = (f) => f === 'margem_pct' || f === 'devolucoes_pct';
+  const fmt = (f, v) => v == null || Number.isNaN(v) ? '—' : (f === 'pecas' || f === 'pecas_ant') ? int.format(v) : f.startsWith('var_') ? sPct.format(v) : isPct(f) ? pct.format(v) : brl.format(v);
+
+  const hoje = DADOS.referencia;
+  const mesAtual = hoje.slice(0, 7), anoAtual = hoje.slice(0, 4);
+  const ontemD = new Date(Date.parse(hoje + 'T12:00:00Z'));
+  const dataBR = (d) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+  const nomeMes = (k, opt = { month: 'long', year: 'numeric' }) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', ...opt }).format(new Date(k + '-15T12:00:00Z'));
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const ultimoDia = (k) => { const [y, m] = k.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
+
+  // período: 'ontem' | 'm:YYYY-MM' | 'a:YYYY'
+  const st = { p: 'm:' + mesAtual, tp: 'm:' + mesAtual, gy: anoAtual, m: 'gmv', tm: 'gmv', v: 'produto', sort: null, dir: -1, q: '' };
+  document.querySelectorAll('.pm-h-mes').forEach((el) => el.setAttribute('data-where', 'periodo=m:' + mesAtual));
+  document.querySelectorAll('.pm-h-ano').forEach((el) => el.setAttribute('data-where', 'periodo=a:' + anoAtual));
+
+  const rotulo = (p) => {
+    if (p === 'ontem') return 'Ontem, ' + dataBR(ontemD);
+    if (p === 'm:' + mesAtual) return cap(nomeMes(mesAtual)) + ', do dia 1 até ' + dataBR(ontemD);
+    if (p === 'a:' + anoAtual) return 'Ano de ' + anoAtual + ', de 1º de janeiro até ' + dataBR(ontemD);
+    if (p.startsWith('m:')) return cap(nomeMes(p.slice(2))) + ' (mês fechado)';
+    return 'Ano de ' + p.slice(2) + ' (fechado)';
+  };
+  const comparacao = (p) => p === 'ontem' ? '' : p === 'm:' + mesAtual ? 'vs. mesmos dias de ' + nomeMes((+anoAtual - 1) + mesAtual.slice(4), { month: 'short', year: 'numeric' }).replace('.', '') : p === 'a:' + anoAtual ? 'vs. mesmo período de ' + (+anoAtual - 1) : p.startsWith('m:') ? 'vs. ' + nomeMes((+p.slice(2, 6) - 1) + p.slice(6), { month: 'short', year: 'numeric' }).replace('.', '') : 'vs. ' + (+p.slice(2) - 1);
+
+  const BASE_VENDAS = 'FROM sales SHOW net_items_sold, gross_sales, discounts, sales_reversals, net_sales, shipping_charges, cost_of_goods_sold, gross_profit GROUP BY product_type, product_title, product_variant_title ';
+  const BASE_ESTOQUE = 'FROM inventory SHOW starting_inventory_units, ending_inventory_units, inventory_units_sold, sell_through_rate GROUP BY product_type, product_title, product_variant_title ';
+  const consulta = (p, base = BASE_VENDAS, ordem = 'net_sales') => {
+    const fim = ' ORDER BY ' + ordem + ' DESC LIMIT 5000';
+    if (p === 'ontem') return base + 'DURING yesterday' + fim;
+    if (p === 'm:' + mesAtual) return base + 'DURING this_month' + fim;
+    if (p === 'a:' + anoAtual) return base + 'DURING this_year' + fim;
+    if (p.startsWith('m:')) { const k = p.slice(2); return base + 'SINCE ' + k + '-01 UNTIL ' + ultimoDia(k) + fim; }
+    const y = p.slice(2); return base + 'SINCE ' + y + '-01-01 UNTIL ' + y + '-12-31' + fim;
+  };
+    st.gp = st.tp;
+  const setTabela = (p) => { st.tp = p; if (dash.params().periodo_produtos !== p) dash.setParams({ periodo_produtos: p }); };
+  const setGiro = (p) => { st.gp = p; if (dash.params().periodo_estoque !== p) dash.setParams({ periodo_estoque: p }); };
+  setTabela(st.tp); setGiro(st.gp);
+
+  const pressed = (sel, attr, val) => document.querySelectorAll(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === val)));
+  const quick = { ontem: 'ontem', mes: 'm:' + mesAtual, ano: 'a:' + anoAtual };
+  const escolher = (p) => { st.p = p; if (p.startsWith('m:') || p.startsWith('a:')) st.gy = p.slice(2, 6); setTabela(p); setGiro(p); draw(); };
+  document.getElementById('seg-periodo').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) escolher(quick[b.dataset.p]); });
+  document.getElementById('sel-periodo').addEventListener('change', (e) => { if (e.target.value) escolher(e.target.value); });
+  document.getElementById('sel-periodo-giro').addEventListener('change', (e) => { if (e.target.value) { setGiro(e.target.value); draw(); } });
+  document.getElementById('sel-periodo-tabela').addEventListener('change', (e) => { if (e.target.value) { setTabela(e.target.value); draw(); } });
+  document.getElementById('sel-ano-grafico').addEventListener('change', (e) => { st.gy = e.target.value; draw(); });
+  document.getElementById('seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; draw(); } });
+  document.getElementById('seg-metrica-tabela').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.tm = b.dataset.m; st.sort = null; drawTable(); pressed('#seg-metrica-tabela', 'm', st.tm); } });
+  document.getElementById('seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; drawTable(); pressed('#seg-visao', 'v', st.v); } });
+  document.getElementById('busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTable(); });
+
+  const failLine = (el) => { el.replaceChildren(); const d = document.createElement('div'); d.className = 'pm-fail'; d.textContent = 'Failed to load'; el.appendChild(d); };
+
+  function fillPeriodSelect(sel, R, value, firstLabel) {
+    const meses = R.map((r) => r.periodo).filter((p) => p.startsWith('m:') && R.find((r) => r.periodo === p).gmv !== 0).sort().reverse();
+    const anos = R.map((r) => r.periodo).filter((p) => p.startsWith('a:')).sort().reverse();
+    const opts = [new Option(firstLabel, '')];
+    opts.push(new Option('Ontem', 'ontem'));
+    const ga = document.createElement('optgroup'); ga.label = 'Anos';
+    for (const a of anos) ga.appendChild(new Option(a.slice(2) === anoAtual ? a.slice(2) + ' (até ontem)' : a.slice(2), a));
+    opts.push(ga);
+    const porAno = d3.group(meses, (p) => p.slice(2, 6));
+    for (const [y, ms] of porAno) { const g = document.createElement('optgroup'); g.label = 'Meses de ' + y; for (const p of ms) g.appendChild(new Option(cap(nomeMes(p.slice(2))) + (p === 'm:' + mesAtual ? ' (até ontem)' : ''), p)); opts.push(g); }
+    sel.replaceChildren(...opts);
+    sel.value = [...sel.querySelectorAll('option')].some((o) => o.value === value) ? value : '';
+  }
+
+  function drawCards(R) {
+    const row = R.find((r) => r.periodo === st.p);
+    const comp = comparacao(st.p);
+    document.querySelectorAll('#indicadores .pm-k').forEach((el) => {
+      el.setAttribute('data-where', 'periodo=' + st.p);
+      el.classList.remove('dash-skeleton');
+      const f = el.dataset.field, v = row ? row[f] : null;
+      if (el.classList.contains('pm-d')) {
+        el.className = 'pm-k pm-d' + (v == null ? '' : v > 0 ? ' pm-up' : v < 0 ? ' pm-down' : '');
+        el.textContent = v == null ? '' : fmt(f, v) + ' ' + comp;
+      } else if (el.classList.contains('pm-pctdev')) {
+        el.textContent = v == null ? '' : fmt(f, v) + ' das vendas brutas';
+      } else el.textContent = row ? fmt(f, v) : '—';
+    });
+  }
+
+  function drawHeadline(R) {
+    document.querySelectorAll('#destaque span[data-source]').forEach((el) => {
+      const k = el.getAttribute('data-where').split('=')[1];
+      const row = R.find((r) => r.periodo === k);
+      el.classList.remove('dash-skeleton');
+      const f = el.dataset.field;
+      el.textContent = row ? fmt(f, row[f]) : (f.startsWith('var_') ? '—' : fmt(f, 0));
+      if (f.startsWith('var_') && row && row[f] != null) el.className = (row[f] > 0 ? 'pm-up' : row[f] < 0 ? 'pm-down' : '') + ' ' + [...el.classList].filter((c) => c.startsWith('pm-h')).join(' ');
+    });
+  }
+
+  function drawChart(R) {
+    const box = document.getElementById('grafico-mensal');
+    box.replaceChildren();
+    const y = st.gy, yAnt = String(+y - 1);
+    const nomes = { gmv: 'GMV', receita: 'Receita líquida', pecas: 'Peças' };
+    document.getElementById('grafico-titulo').textContent = nomes[st.m] + ' mês a mês: ' + y + ' contra ' + yAnt;
+    const cAtual = dash.colors[0], cAnt = 'var(--cds-chart-muted)';
+    const leg = document.getElementById('legenda'); leg.replaceChildren();
+    for (const [c, t] of [[cAnt, yAnt], [cAtual, y + (y === anoAtual ? ' (mês atual parcial)' : '')]]) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); leg.appendChild(s); }
+    const meses = d3.range(1, 13).map((n) => y + '-' + String(n).padStart(2, '0')).filter((k) => k <= mesAtual);
+    const data = meses.map((k) => { const r = R.find((x) => x.periodo === 'm:' + k); return { k, r, v: r ? r[st.m] : 0, a: r ? r[st.m + '_ant'] : null, d: r ? r['var_' + st.m] : null }; });
+    const W = Math.max(300, box.clientWidth), H = 260, mt = 34, mb = 26;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vendas mês a mês contra o ano anterior');
+    const x = d3.scaleBand(meses, [0, W]).paddingInner(0.22).paddingOuter(0.05);
+    const x2 = d3.scaleBand(['a', 'v'], [0, x.bandwidth()]).padding(0.08);
+    const maxV = d3.max(data, (d) => Math.max(d.v || 0, d.a || 0)) || 1;
+    const yS = d3.scaleLinear([0, maxV], [H - mb, mt]);
+    svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', yS(0)).attr('y2', yS(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const bw = Math.min(28, x2.bandwidth());
+    const off = (key) => x2(key) + (x2.bandwidth() - bw) / 2;
+    const g = svg.selectAll('g.b').data(data).join('g').attr('class', 'b').style('cursor', 'pointer');
+    g.append('rect').attr('x', (d) => x(d.k) - 2).attr('width', x.bandwidth() + 4).attr('y', mt - 20).attr('height', H - mb - mt + 20).attr('fill', 'transparent');
+    const bar = (key, val, color) => g.filter((d) => val(d) != null).append('rect')
+      .attr('x', (d) => x(d.k) + off(key)).attr('width', bw)
+      .attr('y', (d) => Math.min(yS(Math.max(0, val(d))), yS(0) - 1)).attr('height', (d) => Math.max(1, yS(0) - yS(Math.max(0, val(d)))))
+      .attr('rx', 4).attr('fill', color);
+    bar('a', (d) => d.a, cAnt);
+    bar('v', (d) => d.v, cAtual).attr('stroke', (d) => st.p === 'm:' + d.k ? 'var(--color-fg)' : 'none').attr('stroke-width', 1.5);
+    const showLabels = x.bandwidth() >= 30;
+    g.append('text').attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', (d) => yS(Math.max(d.v || 0, d.a || 0)) - 7)
+      .attr('text-anchor', 'middle').style('font-size', showLabels ? 'var(--cds-font-size-caption)' : '0.62rem').style('font-variant-numeric', 'tabular-nums')
+      .attr('fill', (d) => d.d == null ? 'var(--color-fg-muted)' : d.d >= 0 ? 'var(--color-ok)' : 'var(--color-bad)')
+      .text((d) => d.d == null ? '' : sPct.format(d.d));
+    g.append('text').attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', H - mb + 17).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)')
+      .text((d) => nomeMes(d.k, { month: 'short' }).replace('.', ''));
+    const tip = document.createElement('div'); tip.className = 'pm-tip'; tip.hidden = true; box.appendChild(tip);
+    const val = (v) => st.m === 'pecas' ? int.format(v) : brl.format(v);
+    g.on('mousemove', (ev, d) => {
+      tip.replaceChildren();
+      const h = document.createElement('div'); h.className = 'pm-tip-h'; h.textContent = cap(nomeMes(d.k, { month: 'long' })) + (d.k === mesAtual ? ' (até ontem, vs. mesmos dias)' : ''); tip.appendChild(h);
+      for (const [c, lab, v] of [[cAtual, y, d.v], [cAnt, yAnt, d.a]]) { const l = document.createElement('div'); const i = document.createElement('i'); i.style.background = c; l.append(i, lab + ': ' + (v == null ? 'sem vendas' : val(v))); tip.appendChild(l); }
+      if (d.d != null) { const l = document.createElement('div'); l.textContent = 'Variação: ' + sPct.format(d.d); tip.appendChild(l); }
+      if (d.r) { const l = document.createElement('div'); l.textContent = 'Margem: ' + fmt('margem_pct', d.r.margem_pct); tip.appendChild(l); }
+      tip.hidden = false;
+      const [mx, my] = d3.pointer(ev, box);
+      tip.style.left = Math.max(0, Math.min(box.clientWidth - tip.offsetWidth, mx + 12)) + 'px';
+      tip.style.top = Math.max(0, my - tip.offsetHeight - 8) + 'px';
+    }).on('mouseleave', () => { tip.hidden = true; })
+      .on('click', (ev, d) => escolher('m:' + d.k));
+  }
+
+  const ordTam = (t) => { if (/^\d+$/.test(t)) return [0, +t]; const L = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG']; const i = L.indexOf(t); return i >= 0 ? [1, i] : [2, 0]; };
+  let L = [];
+  function drawTable() {
+    const table = document.getElementById('tabela');
+    const v = st.v;
+    const cols = [];
+    if (v.includes('estampa')) cols.push({ f: 'estampa', label: 'Estampa', txt: true });
+    if (v.includes('categoria')) cols.push({ f: 'categoria', label: 'Categoria', txt: true });
+    if (v.includes('produto')) cols.push({ f: 'produto', label: 'Produto', txt: true });
+    if (v.includes('tamanho')) cols.push({ f: 'tamanho', label: 'Tamanho', txt: true, size: true });
+    cols.push({ f: 'pecas', label: 'Peças' }, { f: 'gmv', label: 'GMV (sem frete)' }, { f: 'devolucoes', label: 'Devoluções', sm: true }, { f: 'receita', label: 'Receita líquida' }, { f: 'cmv', label: 'CMV', sm: true }, { f: 'margem', label: 'Margem bruta', sm: true }, { f: 'margem_pct', label: 'Margem %' });
+    const sortF = st.sort || (v === 'categoria_tamanho' ? 'categoria' : v === 'estampa_tamanho' ? 'estampa' : st.tm);
+    let rows = L.filter((l) => l.dim === v);
+    if (st.q) rows = rows.filter((l) => (l.estampa + ' ' + l.categoria + ' ' + l.produto + ' ' + l.tamanho).toLowerCase().includes(st.q));
+    const cmpTam = (a, b) => { const A = ordTam(a.tamanho), B = ordTam(b.tamanho); return A[0] - B[0] || A[1] - B[1] || a.tamanho.localeCompare(b.tamanho); };
+    rows.sort((a, b) => {
+      if (sortF === 'tamanho') return st.dir * cmpTam(a, b);
+      if (sortF === 'produto' || sortF === 'categoria' || sortF === 'estampa') return st.dir * (a[sortF].localeCompare(b[sortF], 'pt-BR') || (v.endsWith('_tamanho') ? cmpTam(a, b) : 0));
+      return st.dir * ((a[sortF] ?? -1e15) - (b[sortF] ?? -1e15));
+    });
+    const hr = table.querySelector('thead tr'); hr.replaceChildren();
+    for (const c of cols) {
+      const th = document.createElement('th'); th.setAttribute('data-field', c.f);
+      if (c.txt) th.className = 'pm-txt'; if (c.sm) th.classList.add('pm-hide-sm');
+      th.setAttribute('aria-sort', sortF === c.f ? (st.dir < 0 ? 'descending' : 'ascending') : 'none');
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = c.label + (sortF === c.f ? (st.dir < 0 ? ' ↓' : ' ↑') : '');
+      b.addEventListener('click', () => { if (sortF === c.f) st.dir = -st.dir; else { st.sort = c.f; st.dir = c.txt ? 1 : -1; } drawTable(); });
+      th.appendChild(b); hr.appendChild(th);
+    }
+    const tb = table.querySelector('tbody'); tb.replaceChildren();
+    const maxM = d3.max(rows, (r) => Math.abs(r[st.tm])) || 1;
+    for (const r of rows) {
+      const tr = document.createElement('tr'); tr.setAttribute('data-key', r.id);
+      cols.forEach((c, ci) => {
+        const td = document.createElement('td');
+        if (c.txt) {
+          td.className = 'pm-txt' + (c.size ? ' pm-size' : ''); td.textContent = r[c.f];
+          if (ci === cols.filter((x) => x.txt).length - 1 && r.receita_sem_custo > 0 && r.dim !== 'tamanho' && r.dim !== 'categoria' && r.dim !== 'estampa' && r.dim !== 'estampa_tamanho') { const s = document.createElement('span'); s.className = 'pm-flag'; s.textContent = 'sem custo'; td.appendChild(s); }
+        } else {
+          td.textContent = fmt(c.f, r[c.f]);
+          if (c.sm) td.classList.add('pm-hide-sm');
+          if (c.f === 'margem_pct' && r.margem_pct != null && r.margem_pct < 0) td.classList.add('pm-bad');
+          if (c.f === st.tm) { td.classList.add('pm-bar'); const i = document.createElement('i'); i.style.width = 'calc(' + Math.round(Math.abs(r[c.f]) / maxM * 100) + '% - 1rem)'; td.appendChild(i); }
+        }
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    }
+    if (!rows.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = cols.length; td.className = 'pm-txt'; td.style.color = 'var(--color-fg-muted)'; td.textContent = st.q ? 'Nada encontrado para essa busca.' : 'Sem vendas neste período.'; tr.appendChild(td); tb.appendChild(tr); }
+    const titulos = { produto: 'por produto', estampa: 'por estampa', estampa_tamanho: 'por estampa e tamanho', categoria: 'por categoria', tamanho: 'por tamanho', categoria_tamanho: 'por categoria e tamanho', produto_tamanho: 'por produto e tamanho' };
+    document.getElementById('detalhe-titulo').textContent = 'Vendas ' + titulos[v];
+    document.getElementById('detalhe-janela').textContent = rotulo(st.tp) + '. Clique no cabeçalho de uma coluna para ordenar.';
+    const tot = L.find((l) => l.id === 'total');
+    document.querySelectorAll('#detalhe-frete span[data-source]').forEach((el) => { el.textContent = tot ? fmt(el.dataset.field, tot[el.dataset.field] || 0) : '—'; });
+    document.getElementById('aviso-custo').hidden = !(tot && tot.receita_sem_custo > 0);
+  }
+
+  st.g = 'produto'; st.gq = ''; st.gsort = null; st.gdir = -1;
+  document.getElementById('seg-giro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.g = b.dataset.g; st.gsort = null; drawGiro(); } });
+  document.getElementById('busca-giro').addEventListener('input', (e) => { st.gq = e.target.value.trim().toLowerCase(); drawGiro(); });
+
+  function tabela(table, cols, rows, sortKey, dir, onSort, barField, emptyText) {
+    const hr = table.querySelector('thead tr'); hr.replaceChildren();
+    for (const c of cols) {
+      const th = document.createElement('th'); th.setAttribute('data-field', c.f);
+      if (c.txt) th.className = 'pm-txt'; if (c.sm) th.classList.add('pm-hide-sm');
+      th.setAttribute('aria-sort', sortKey === c.f ? (dir < 0 ? 'descending' : 'ascending') : 'none');
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = c.label + (sortKey === c.f ? (dir < 0 ? ' ↓' : ' ↑') : '');
+      b.addEventListener('click', () => onSort(c));
+      th.appendChild(b); hr.appendChild(th);
+    }
+    const tb = table.querySelector('tbody'); tb.replaceChildren();
+    const maxB = barField ? (d3.max(rows, (r) => Math.abs(r[barField] || 0)) || 1) : 1;
+    for (const r of rows) {
+      const tr = document.createElement('tr'); tr.setAttribute('data-key', r.id);
+      for (const c of cols) {
+        const td = document.createElement('td');
+        if (c.txt) { td.className = 'pm-txt' + (c.size ? ' pm-size' : ''); td.textContent = r[c.f]; }
+        else { td.textContent = c.fmt(r[c.f]); if (c.sm) td.classList.add('pm-hide-sm'); }
+        if (c.f === barField && r[c.f] != null) { td.classList.add('pm-bar'); const i = document.createElement('i'); i.style.width = 'calc(' + Math.round(Math.abs(r[c.f]) / maxB * 100) + '% - 1rem)'; td.appendChild(i); }
+        tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+    if (!rows.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = cols.length; td.className = 'pm-txt'; td.style.color = 'var(--color-fg-muted)'; td.textContent = emptyText; tr.appendChild(td); tb.appendChild(tr); }
+  }
+  const ordena = (rows, k, dir, txt) => rows.sort((a, b) => txt ? dir * String(a[k]).localeCompare(String(b[k]), 'pt-BR') : dir * ((a[k] ?? -1e15) - (b[k] ?? -1e15)));
+
+  let G = [];
+  function drawGiro() {
+    pressed('#seg-giro', 'g', st.g);
+    const g = st.g, cols = [];
+    if (g.includes('estampa')) cols.push({ f: 'estampa', label: 'Estampa', txt: true });
+    if (g.includes('categoria')) cols.push({ f: 'categoria', label: 'Categoria', txt: true });
+    if (g.includes('produto')) cols.push({ f: 'produto', label: 'Produto', txt: true });
+    if (g.includes('tamanho')) cols.push({ f: 'tamanho', label: 'Tamanho', txt: true, size: true });
+    cols.push({ f: 'vendidas', label: 'Peças vendidas', fmt: (v) => int.format(v) }, { f: 'estoque_inicial', label: 'Estoque no início', sm: true, fmt: (v) => int.format(v) }, { f: 'estoque_final', label: 'Estoque no fim', fmt: (v) => int.format(v) }, { f: 'sell_through', label: 'Sell-through', fmt: (v) => v == null ? '—' : pct.format(v) });
+    let rows = G.filter((r) => r.dim === g);
+    if (st.gq) rows = rows.filter((r) => (r.estampa + ' ' + r.categoria + ' ' + r.produto + ' ' + r.tamanho).toLowerCase().includes(st.gq));
+    const sc = cols.find((c) => c.f === st.gsort) ? st.gsort : (g.endsWith('_tamanho') && g !== 'produto_tamanho' ? g.split('_')[0] : 'sell_through');
+    const dir = st.gsort ? st.gdir : (sc === 'sell_through' ? -1 : 1);
+    const cTam = (a, b) => { const A = ordTam(a.tamanho), B = ordTam(b.tamanho); return A[0] - B[0] || A[1] - B[1] || a.tamanho.localeCompare(b.tamanho); };
+    if (sc === 'tamanho') rows.sort((a, b) => dir * cTam(a, b));
+    else if ((cols.find((c) => c.f === sc) || {}).txt) rows.sort((a, b) => dir * (String(a[sc]).localeCompare(String(b[sc]), 'pt-BR') || (g.endsWith('_tamanho') ? cTam(a, b) : 0)));
+    else ordena(rows, sc, dir, false);
+    tabela(document.getElementById('tabela-giro'), cols, rows, sc, dir, (c) => { if (sc === c.f) { st.gsort = c.f; st.gdir = -dir; } else { st.gsort = c.f; st.gdir = c.txt ? 1 : -1; } drawGiro(); }, 'sell_through', st.gq ? 'Nada encontrado para essa busca.' : 'Sem movimento de estoque neste período.');
+    const tit = { produto: 'por produto', estampa: 'por estampa', categoria: 'por categoria', tamanho: 'por tamanho', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', produto_tamanho: 'por produto e tamanho' };
+    document.getElementById('giro-titulo').textContent = 'Sell-through ' + tit[g];
+    document.getElementById('giro-janela').textContent = rotulo(st.gp);
+  }
+
+  function draw() {
+    const res = dash.data('periodos'), lin = dash.data('linhas');
+    pressed('#seg-periodo', 'p', Object.keys(quick).find((k) => quick[k] === st.p) || '');
+    pressed('#seg-metrica', 'm', st.m); pressed('#seg-metrica-tabela', 'm', st.tm); pressed('#seg-visao', 'v', st.v);
+    const R = res.status === 'ok' ? res.data : [];
+    const isQuick = Object.values(quick).includes(st.p);
+    const sp = document.getElementById('sel-periodo');
+    fillPeriodSelect(sp, R, isQuick ? '' : st.p, 'Outro mês ou ano…');
+    sp.classList.toggle('pm-on', !isQuick);
+    fillPeriodSelect(document.getElementById('sel-periodo-tabela'), R, st.tp, 'Período da tabela…');
+    fillPeriodSelect(document.getElementById('sel-periodo-giro'), R, st.gp, 'Período do sell-through…');
+    const anos = R.map((r) => r.periodo).filter((p) => p.startsWith('a:')).map((p) => p.slice(2)).sort().reverse();
+    const sy = document.getElementById('sel-ano-grafico');
+    sy.replaceChildren(...anos.map((a) => new Option(a, a)));
+    if (anos.length) { if (!anos.includes(st.gy)) st.gy = anos[0]; sy.value = st.gy; }
+    document.getElementById('janela').textContent = rotulo(st.p);
+    const chart = document.getElementById('grafico-mensal');
+    if (res.status === 'ok') { drawHeadline(R); drawCards(R); drawChart(R); }
+    else if (res.status === 'error') { failLine(chart); }
+    else { chart.replaceChildren(); }
+    if (lin.status === 'ok') { L = lin.data; drawTable(); }
+    const gi = dash.data('giro'); if (gi.status === 'ok') { G = gi.data; drawGiro(); } else if (gi.status === 'error') failLine(document.querySelector('#tabela-giro tbody'));
+  }
+
+  dash.onData(draw);
+})();
+</script>
+
+</div>
+</body>
+</html>

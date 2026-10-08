@@ -1,0 +1,62 @@
+name: Atualizar painel de vendas
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 10h UTC = 7h em Brasília (o GitHub pode atrasar alguns minutos)
+  workflow_dispatch: {}     # botão "Run workflow" para atualizar na hora
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: painel
+  cancel-in-progress: false
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+      - name: Buscar a venda fechada no Shopify
+        env:
+          SHOPIFY_STORE: ${{ vars.SHOPIFY_STORE || 'pintamemais.myshopify.com' }}
+          SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+        run: npm run -s build
+
+      - name: Proteger com senha
+        env:
+          STATICRYPT_PASSWORD: ${{ secrets.PAINEL_SENHA }}
+        run: |
+          if [ ${#STATICRYPT_PASSWORD} -lt 12 ]; then
+            echo "::error::Cadastre o segredo PAINEL_SENHA com pelo menos 12 caracteres."
+            exit 1
+          fi
+          npm run -s proteger
+          rm -rf dist
+          touch site/.nojekyll
+          printf 'User-agent: *\nDisallow: /\n' > site/robots.txt
+          if grep -q "product_title" site/index.html; then echo "::error::Página sem criptografia, publicação cancelada."; exit 1; fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publicar:
+    needs: gerar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

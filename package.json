@@ -1,0 +1,14 @@
+{
+  "name": "vendaspintame",
+  "private": true,
+  "type": "module",
+  "description": "Painel de vendas da Pinta Me, atualizado todo dia e protegido por senha",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "proteger": "staticrypt dist/index.html -d site --remember 30 --short --template-title \"Vendas Pinta Me\" --template-instructions \"Painel interno da Pinta Me. Digite a senha do time.\" --template-button \"Entrar\" --template-placeholder \"Senha\" --template-remember \"Lembrar neste aparelho por 30 dias\" --template-error \"Senha incorreta\" --template-toggle-show \"Mostrar senha\" --template-toggle-hide \"Esconder senha\" --template-color-primary \"#3b6fd8\" --template-color-secondary \"#f4f2ee\""
+  },
+  "dependencies": {
+    "d3": "7.9.0",
+    "staticrypt": "3.5.4"
+  }
+}
