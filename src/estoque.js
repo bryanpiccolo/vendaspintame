@@ -155,17 +155,23 @@
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
       let a = acc.get(k);
-      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, sobra_chegada: 0, dem_cobertura: 0, necessidade: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
+      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, sobra_chegada: 0, dem_cobertura: 0, necessidade: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {}, itens: [] }; acc.set(k, a); }
+      a.itens.push(i);
       a.estoque += Math.max(0, i.estoque); a.prev_resto_mes += i.prev_resto_mes; a.m1 += i.prev_meses[meses3[0]]; a.m2 += i.prev_meses[meses3[1]]; a.m3 += i.prev_meses[meses3[2]];
       a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.sobra_chegada += Math.min(i.sobra_chegada, i.necessidade); a.dem_cobertura += i.dem_cobertura; a.necessidade += i.necessidade; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
       if (i.comprar > 0) a.nRisco++;
     }
     const d30 = R.dias.slice(0, 30).reduce((x, d) => x + d.valor, 0) / 30;
     return [...acc.values()].map((a) => {
-      let soma = 0, rup = null;
-      for (const d of R.dias) { soma += a.share * d.valor; if (soma > a.estoque) { rup = d.dia; break; } }
+      // o grupo mostra o primeiro tamanho/peça que acaba (tamanhos não substituem um ao outro)
+      const comVenda = a.itens.filter((i) => i.share > 0);
+      const rk = (i) => i.ruptura === 'agora' ? '0000' : i.ruptura || '9999';
+      const prim = comVenda.slice().sort((x, y) => rk(x).localeCompare(rk(y)))[0];
+      const acabam = comVenda.filter((i) => i.ruptura);
+      const cobs = comVenda.map((i) => i.cobertura_dias).filter((c) => c != null);
       a.sell_through = a.vj > 0 ? a.vj / (a.vj + a.estoque) : null;
-      const g = { ...a, ruptura: a.estoque <= 0 && a.share > 0 ? 'agora' : rup, cobertura_dias: a.share > 0 ? a.estoque / (a.share * d30) : null };
+      const g = { ...a, ruptura: prim ? prim.ruptura : null, rup_quem: prim && prim.ruptura ? (dims.includes('produto') ? 'tam. ' + prim.tamanho : prim.produto.replace(/ Infantil para Colorir| \+ 6 canetinhas/g, '') + (prim.tamanho !== 'Único' ? ' ' + prim.tamanho : '')) : '', rup_n: acabam.length, itens_venda: comVenda.length, cobertura_dias: cobs.length ? Math.min(...cobs) : null };
+      delete g.itens;
       g.status = status(g);
       return g;
     }).filter((g) => g.status);
@@ -190,7 +196,7 @@
       { f: 'm2', label: 'Prev. ' + curto(meses3[1]), fmt: (x) => int.format(x), sm: true },
       { f: 'm3', label: 'Prev. ' + curto(meses3[2]), fmt: (x) => int.format(x), sm: true },
       { f: 'cobertura_dias', label: 'Cobertura (dias)', fmt: (x) => x == null ? '—' : x > 365 ? '> 1 ano' : int.format(x) },
-      { f: 'ruptura', label: 'Acaba em', rup: true },
+      { f: 'ruptura', label: 'Acaba em', rup: true, tip: 'Nas linhas agrupadas: data em que o primeiro tamanho acaba' },
       { f: 'comprar', label: 'Comprar (peças)', fmt: (x) => x > 0 ? int.format(x) : '—', strong: true },
     );
     let rows = linhas();
@@ -211,7 +217,7 @@
     const table = document.getElementById('est-tabela');
     const hr = table.querySelector('thead tr'); hr.replaceChildren();
     for (const c of cols) {
-      const th = el('th', c.txt ? 'pm-txt' : ''); if (c.sm) th.classList.add('pm-hide-sm'); if (c.st) th.classList.add('pm-txt');
+      const th = el('th', c.txt ? 'pm-txt' : ''); if (c.sm) th.classList.add('pm-hide-sm'); if (c.st) th.classList.add('pm-txt'); if (c.tip) th.title = c.tip;
       th.setAttribute('aria-sort', sc === c.f ? (dir < 0 ? 'descending' : 'ascending') : 'none');
       const b = el('button', '', c.label + (sc === c.f ? (dir < 0 ? ' ↓' : ' ↑') : '')); b.type = 'button';
       b.addEventListener('click', () => { if (st.sort === c.f) st.dir = -st.dir; else { st.sort = c.f; st.dir = c.txt || c.rup || c.st ? 1 : -1; } drawTabela(); });
@@ -240,7 +246,7 @@
         }
         else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1 && !r.filho) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
         else if (c.st2) { td = el('td', '', r.sell_through == null ? '—' : pct.format(r.sell_through).replace('+', '')); if (r.fator && r.fator > 1) td.appendChild(el('small', 'pm-sub', 'compra ×' + String(r.fator).replace('.', ','))); }
-        else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
+        else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); if (r.n > 1 && !r.filho && r.rup_quem) td.appendChild(el('small', 'pm-sub', r.rup_quem + ' primeiro' + (r.rup_n > 1 ? ' · ' + r.rup_n + ' de ' + r.itens_venda + ' acabam até ' + curto(R.loja.futuros[5].mes) : ''))); }
         else {
           td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)';
           if (c.f === 'comprar' && r.dem_cobertura != null) {
