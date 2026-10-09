@@ -118,6 +118,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <button type="button" role="tab" data-aba="mes" id="tab-mes">Vendas mês a mês</button>
     <button type="button" role="tab" data-aba="produtos" id="tab-produtos">Vendas por produto</button>
     <button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>
+    <button type="button" role="tab" data-aba="estoque" id="tab-estoque">Estoque</button>
   </nav>
 
   <div class="pm-tab" id="aba-mes" role="tabpanel">
@@ -267,6 +268,8 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     </div>
   </section>
   </div>
+
+<!--ABA_ESTOQUE-->
 
   <p class="pm-foot" id="notas">
     <b>GMV</b>: vendas brutas menos descontos, mais o frete pago pelos clientes. Devoluções não são abatidas.
@@ -855,12 +858,12 @@ dash.calc('giro', {
     document.getElementById('giro-janela').textContent = rotulo(st.gp);
   }
 
-  st.aba = ['mes', 'produtos', 'estados'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'mes';
+  st.aba = ['mes', 'produtos', 'estados', 'estoque'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'mes';
   st.mm = 'gmv'; st.em = 'gmv'; st.ey = null; st.eq = '';
   const mostraAba = (a) => {
     st.aba = a;
     document.querySelectorAll('#abas button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.aba === a)));
-    for (const x of ['mes', 'produtos', 'estados']) document.getElementById('aba-' + x).hidden = x !== a;
+    for (const x of ['mes', 'produtos', 'estados', 'estoque']) document.getElementById('aba-' + x).hidden = x !== a;
     dash.setLink(a);
   };
   document.getElementById('abas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { mostraAba(b.dataset.aba); draw(); } });
@@ -990,6 +993,8 @@ dash.calc('giro', {
 })();
 </script>
 
+<script>/*PREVISAO*/</script>
+<script>/*ESTOQUE*/</script>
 </div>
 </body>
 </html>

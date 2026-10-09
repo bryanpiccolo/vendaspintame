@@ -117,7 +117,10 @@ async function main() {
   const prodOntem = R.produtos_dia.filter((r) => dia(r) === ref).map((r) => ({ ...r, month: ref }));
   const estoques = Object.keys(R).filter((k) => /^estoque_\d{4}/.test(k)).flatMap((k) => R[k]);
 
+  // Total da loja por dia (para a curva do mês e a projeção dos próximos dias).
+  const diario_total = somaPor(R.diario, dia).map(({ _k, ...v }) => ({ day: _k, ...v })).sort((a, b) => (a.day < b.day ? -1 : 1));
   const dados = {
+    diario_total,
     gerado_em: new Date().toISOString(),
     referencia: ref,
     mensal, ano_passado, ontem, estados: R.estados, estados_ly,
@@ -130,9 +133,14 @@ async function main() {
   const d3 = await readFile(path.join(root, 'node_modules', 'd3', 'dist', 'd3.min.js'), 'utf8');
   if (/<\/script/i.test(d3)) throw new Error('d3 contém </script>');
   if (!tpl.includes('/*DADOS*/null')) throw new Error('Marcador de dados não encontrado no modelo');
+  const prev = await readFile(path.join(root, 'src', 'previsao.js'), 'utf8');
+  const estJs = await readFile(path.join(root, 'src', 'estoque.js'), 'utf8');
+  const abaEst = await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8');
+  for (const [n, t] of [['previsao.js', prev], ['estoque.js', estJs]]) if (/<\/script/i.test(t)) throw new Error(n + ' contém </script>');
+  for (const m of ['/*PREVISAO*/', '/*ESTOQUE*/', '<!--ABA_ESTOQUE-->']) if (!tpl.includes(m)) throw new Error('Marcador ' + m + ' não encontrado no modelo');
   const json = JSON.stringify(dados).replace(/</g, '\\u003c');
   await mkdir(path.join(root, 'dist'), { recursive: true });
-  await writeFile(path.join(root, 'dist', 'index.html'), tpl.replace('/*D3*/', () => d3).replace('/*DADOS*/null', () => json));
+  await writeFile(path.join(root, 'dist', 'index.html'), tpl.replace('<!--ABA_ESTOQUE-->', () => abaEst).replace('/*PREVISAO*/', () => prev).replace('/*ESTOQUE*/', () => estJs).replace('/*D3*/', () => d3).replace('/*DADOS*/null', () => json));
   console.log(`dist/index.html gerado (${(json.length / 1024).toFixed(0)} KB de dados, venda fechada até ${ref})`);
 }
 

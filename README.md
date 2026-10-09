@@ -1,6 +1,6 @@
 # Painel de vendas Pinta Me
 
-Painel com a venda **fechada até o dia anterior**, atualizado todo dia às 7h (horário de Brasília) e protegido por senha. Tem três abas: vendas mês a mês, vendas por produto (com sell-through) e vendas por estado.
+Painel com a venda **fechada até o dia anterior**, atualizado todo dia às 7h (horário de Brasília) e protegido por senha. Tem quatro abas: vendas mês a mês, vendas por produto (com sell-through), vendas por estado e estoque (previsão de vendas, risco de ruptura e compra sugerida).
 
 ## Como funciona
 
@@ -42,3 +42,4 @@ As pastas `.dados/`, `dist/`, `site/` e `teste/fixtures/` têm dados reais e est
 - **Margem bruta** = receita líquida − CMV, como o Shopify calcula. O CMV é o custo da variante registrado no momento da venda.
 - **Sell-through** = peças vendidas ÷ (vendidas + estoque no fim do período). Estoque no 1º dia + entradas e ajustes − vendidas = estoque no último dia. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça, então o estoque conta uma vez só.
 - **Estampa** é lida do nome do produto. **Tamanho** é lido do nome da variante.
+- **Previsão (aba Estoque)**: sazonalidade de cada mês pela razão com a média móvel centrada de 12 meses (site, desde 2024); nível atual = média dos 3 últimos meses fechados sem a sazonalidade. O mês corrente junta o ritmo do mês (pela curva diária dos últimos 12 meses) com a previsão sazonal. Por produto e tamanho, a previsão da loja é dividida pela participação de cada peça nas vendas dos 3 últimos meses fechados + mês atual. **Comprar** = venda prevista em (prazo de reposição + cobertura) − estoque de hoje. Só considera vendas do site. Código em `src/previsao.js`, tela em `src/estoque.js` e `src/aba_estoque.html`.

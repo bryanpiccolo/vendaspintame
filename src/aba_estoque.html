@@ -1,0 +1,76 @@
+<style>
+.pm-field { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pm-num { width: 4.5rem; text-align: right; }
+.pm-chip { display: inline-block; font-size: 0.72rem; border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45rem; white-space: nowrap; }
+.pm-sub { display: block; font-size: 0.68rem; color: var(--color-fg-muted); }
+</style>
+  <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
+  <div class="pm-controls">
+    <label class="pm-field">Prazo de reposição <input class="pm-select pm-num" id="est-prazo" type="number" min="0" max="365" step="5" value="45"> dias</label>
+    <label class="pm-field">Cobertura desejada depois da chegada <input class="pm-select pm-num" id="est-cobertura" type="number" min="0" max="365" step="5" value="60"> dias</label>
+  </div>
+  <p class="pm-window" id="est-janela"></p>
+
+  <section class="pm-cards" id="est-cards"></section>
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="est-mensal-titulo">Vendas realizadas e previstas</h2>
+        <p class="pm-note">Barras cheias são vendas realizadas; as claras são a previsão. A marca cinza é o mesmo mês do ano anterior. Passe o mouse num mês para ver os números.</p>
+      </div>
+      <div class="pm-seg" id="est-seg-metrica" aria-label="Medida">
+        <button type="button" data-m="pecas">Peças</button>
+        <button type="button" data-m="gmv">GMV</button>
+      </div>
+    </div>
+    <div class="pm-legend" id="est-legenda-mensal"></div>
+    <div class="pm-chart" id="est-grafico-mensal"></div>
+  </section>
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="est-diario-titulo">Mês atual dia a dia</h2>
+        <p class="pm-note" id="est-diario-nota"></p>
+      </div>
+    </div>
+    <div class="pm-legend" id="est-legenda-diario"></div>
+    <div class="pm-chart" id="est-grafico-diario"></div>
+  </section>
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="est-tabela-titulo">Risco de ruptura e compra sugerida</h2>
+        <p class="pm-note" id="est-tabela-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <div class="pm-seg" id="est-seg-visao" aria-label="Agrupar por">
+        <button type="button" data-v="produto_tamanho">Produto × tamanho</button>
+        <button type="button" data-v="produto">Produto</button>
+        <button type="button" data-v="estampa_tamanho">Estampa × tamanho</button>
+        <button type="button" data-v="categoria_tamanho">Categoria × tamanho</button>
+        <button type="button" data-v="estampa">Estampa</button>
+        <button type="button" data-v="tamanho">Tamanho</button>
+      </div>
+      <div class="pm-seg" id="est-seg-filtro" aria-label="Mostrar">
+        <button type="button" data-f="risco">Precisa comprar</button>
+        <button type="button" data-f="todos">Todos</button>
+        <button type="button" data-f="excesso">Excesso ou sem venda</button>
+      </div>
+      <input class="pm-search" id="est-busca" type="search" placeholder="Buscar produto, estampa ou tamanho" aria-label="Buscar no estoque">
+    </div>
+    <div class="pm-legend" id="est-legenda-status"></div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="est-tabela"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <p class="pm-note" id="est-rodape"></p>
+  </section>
+
+  <p class="pm-foot">
+    <b>Como a previsão é feita.</b> 1) <b>Sazonalidade</b>: para cada mês do ano, quanto ele costuma vender acima ou abaixo da média dos 12 meses em volta dele (histórico do site desde 2024). 2) <b>Nível atual</b>: média dos 3 últimos meses fechados, descontada a sazonalidade. Mês futuro = nível atual × sazonalidade do mês. 3) <b>Mês atual</b>: pela curva diária dos últimos 12 meses, sabemos que parte do mês costuma estar vendida até o dia de ontem; o fechamento previsto junta o ritmo deste mês com a previsão sazonal, dando mais peso ao ritmo conforme o mês avança. 4) <b>Produto e tamanho</b>: a previsão da loja é dividida pela participação de cada peça nas vendas dos 3 últimos meses fechados mais o mês atual. 5) <b>Ruptura</b>: dia em que a venda prevista acumulada passa do estoque de hoje. <b>Comprar</b> = venda prevista entre amanhã e (prazo de reposição + cobertura desejada) − estoque de hoje.
+    <b>Limites</b>: só considera as vendas do site; vendas no Mercado Livre e em outros canais também consomem estoque, então o risco real é maior. Lançamentos sem histórico e peças que estavam sem estoque nos últimos meses aparecem com venda prevista baixa. Coleções novas (como Natal) não são previstas antes de começarem a vender.
+  </p>
+  </div>
