@@ -13,8 +13,8 @@
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
   <div class="pm-controls">
-    <label class="pm-field">Prazo de reposição <input class="pm-select pm-num" id="est-prazo" type="number" min="0" max="365" step="5" value="45"> dias</label>
-    <label class="pm-field">Cobertura desejada depois da chegada <input class="pm-select pm-num" id="est-cobertura" type="number" min="0" max="365" step="5" value="60"> dias</label>
+    <label class="pm-field">Prazo de reposição <input class="pm-select pm-num" id="est-prazo" type="number" min="1" max="365" step="1" value="22"> dias</label>
+    <label class="pm-field">Cobertura desejada depois da chegada <input class="pm-select pm-num" id="est-cobertura" type="number" min="0" max="365" step="1" value="60"> dias</label>
   </div>
   <p class="pm-window" id="est-janela"></p>
 
@@ -72,7 +72,7 @@
   </section>
 
   <p class="pm-foot">
-    <b>Ruptura</b>: dia em que a venda prevista acumulada passa do estoque de hoje. <b>Comprar</b> = venda prevista entre amanhã e (prazo de reposição + cobertura desejada), multiplicada pelo fator de sell-through da peça, menos o estoque de hoje. <b>Sell-through</b> = vendas dos últimos meses ÷ (essas vendas + estoque de hoje).
+    <b>Ruptura</b>: dia em que a venda prevista acumulada passa do estoque de hoje. <b>Comprar</b> = venda prevista nos dias de cobertura depois que a compra chega (hoje + prazo de reposição), multiplicada pelo fator de sell-through da peça, menos o estoque que ainda sobra no dia da chegada. A venda que acontece até a chegada sai do estoque atual; o que faltar nesse período não entra na compra. <b>Sell-through</b> = vendas dos últimos meses ÷ (essas vendas + estoque de hoje).
     <b>Limites</b>: só considera as vendas do site; vendas no Mercado Livre e em outros canais também consomem estoque, então o risco real é maior. Peças que ficaram sem estoque nos últimos meses aparecem com venda prevista baixa. Coleções novas (como Natal) não são previstas antes de começarem a vender.
   </p>
   </div>

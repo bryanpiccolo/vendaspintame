@@ -15,7 +15,8 @@
 // 5. Produto/tamanho: participação de cada peça nas vendas dos 2 últimos meses fechados + mês atual.
 //    Variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça física.
 // 6. Ruptura: dia em que a venda prevista acumulada passa o estoque de hoje.
-// 7. Comprar = venda prevista em (prazo + cobertura) × fator de sell-through − estoque de hoje.
+// 7. A compra chega depois do prazo de reposição. Comprar = venda prevista nos dias de cobertura depois da
+//    chegada × fator de sell-through − estoque que ainda sobra no dia da chegada.
 //    Sell-through da peça = vendas da janela ÷ (vendas da janela + estoque de hoje); quartil de cima × 1,3,
 //    segundo quartil × 1,15, demais × 1.
 (function (raiz) {
@@ -163,7 +164,7 @@
 
   // Projeta a demanda dia a dia a partir de amanhã para cada peça e calcula ruptura e compra.
   function calcula(D, opcoes) {
-    const prazo = opcoes.prazo ?? 45, cobertura = opcoes.cobertura ?? 60;
+    const prazo = opcoes.prazo ?? 22, cobertura = opcoes.cobertura ?? 60;
     const L = loja(D, 'pecas'), G = loja(D, 'gmv');
     const itens = pecas(D);
     const totalJanela = itens.reduce((a, b) => a + Math.max(0, b.vendas_janela), 0) || 1;
@@ -184,15 +185,18 @@
       it.share = share;
       it.prev_resto_mes = share * L.restante;
       it.prev_meses = Object.fromEntries(L.futuros.map((f) => [f.mes, share * f.valor]));
-      let acc = 0, ruptura = null, demHoriz = 0;
-      dias.forEach((d, i) => { acc += share * d.valor; if (ruptura == null && acc > it.estoque) ruptura = d.dia; if (i < horizonte) demHoriz += share * d.valor; });
+      let acc = 0, ruptura = null, demHoriz = 0, demPrazo = 0, demCob = 0;
+      dias.forEach((d, i) => { const q = share * d.valor; acc += q; if (ruptura == null && acc > it.estoque) ruptura = d.dia; if (i < horizonte) demHoriz += q; if (i < prazo) demPrazo += q; else if (i < horizonte) demCob += q; });
       it.ruptura = it.estoque <= 0 && share > 0 ? 'agora' : ruptura;
       const diaria30 = dias.slice(0, 30).reduce((a, d) => a + share * d.valor, 0) / 30;
       it.cobertura_dias = diaria30 > 0 ? it.estoque / diaria30 : null;
       it.demanda_horizonte = demHoriz;
-      it.comprar = Math.max(0, Math.ceil(demHoriz * it.fator - it.estoque));
+      it.sobra_chegada = Math.max(0, it.estoque - demPrazo);
+      it.dem_cobertura = demCob;
+      it.necessidade = demCob * it.fator;
+      it.comprar = Math.max(0, Math.ceil(it.necessidade - it.sobra_chegada));
     }
-    return { loja: L, gmv: G, itens, dias, meses, cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
+    return { loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
   raiz.Previsao = { REGRAS, calcula, loja, pecas, addMes, diasNoMes, addDias };

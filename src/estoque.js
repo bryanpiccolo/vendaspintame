@@ -26,7 +26,7 @@
     ['Casacos, blusões e moletons', /casaco|blus[aã]o|moletom|jaqueta/i],
   ];
   const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
-  const st = { m: 'pecas', v: guarda.le('visao2', 'produto'), abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo', 45), cobertura: +guarda.le('cobertura', 60) };
+  const st = { m: 'pecas', v: guarda.le('visao2', 'produto'), abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo2', 22), cobertura: +guarda.le('cobertura', 60) };
   let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
 
@@ -155,9 +155,9 @@
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
       let a = acc.get(k);
-      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
+      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, sobra_chegada: 0, dem_cobertura: 0, necessidade: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
       a.estoque += Math.max(0, i.estoque); a.prev_resto_mes += i.prev_resto_mes; a.m1 += i.prev_meses[meses3[0]]; a.m2 += i.prev_meses[meses3[1]]; a.m3 += i.prev_meses[meses3[2]];
-      a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
+      a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.sobra_chegada += Math.min(i.sobra_chegada, i.necessidade); a.dem_cobertura += i.dem_cobertura; a.necessidade += i.necessidade; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
       if (i.comprar > 0) a.nRisco++;
     }
     const d30 = R.dias.slice(0, 30).reduce((x, d) => x + d.valor, 0) / 30;
@@ -241,7 +241,14 @@
         else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1 && !r.filho) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
         else if (c.st2) { td = el('td', '', r.sell_through == null ? '—' : pct.format(r.sell_through).replace('+', '')); if (r.fator && r.fator > 1) td.appendChild(el('small', 'pm-sub', 'compra ×' + String(r.fator).replace('.', ','))); }
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
-        else { td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)'; }
+        else {
+          td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)';
+          if (c.f === 'comprar' && r.dem_cobertura != null) {
+            const fat = r.dem_cobertura > 0 ? r.necessidade / r.dem_cobertura : 1;
+            td.title = `Chega em ${dataBR(R.chegada)}. Venda prevista de ${dataCurta(R.chegada)} a ${dataCurta(R.fimCobertura)}: ${int.format(r.dem_cobertura)}` + (fat > 1.001 ? ` × ${fat.toFixed(2).replace('.', ',')} (sell-through) = ${int.format(r.necessidade)}` : '') + `. Estoque que sobra na chegada: ${int.format(r.sobra_chegada)}. Comprar: ${int.format(r.comprar)}.`;
+            if (r.comprar > 0) td.appendChild(el('small', 'pm-sub', int.format(r.necessidade) + (r.sobra_chegada > 0.5 ? ' − ' + int.format(r.sobra_chegada) + ' sobra' : '')));
+          }
+        }
         if (c.sm) td.classList.add('pm-hide-sm');
         tr.appendChild(td);
       }
@@ -252,7 +259,7 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Se a compra for feita hoje, chega em ${dataBR(R.chegada)} (${st.prazo} dias). Comprar = venda prevista nos ${st.cobertura} dias depois da chegada (até ${dataBR(R.fimCobertura)}) × fator de sell-through − estoque que ainda sobra no dia da chegada. Passe o mouse no número para ver a conta. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
@@ -266,7 +273,7 @@
   window.EstoqueAba = { define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); }, carregado: () => !!DADOS };
 
   document.getElementById('est-prazo').value = st.prazo; document.getElementById('est-cobertura').value = st.cobertura;
-  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); } };
+  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo2', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); } };
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
   document.getElementById('est-seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; drawMensal(); } });
   document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao2', st.v); st.abertos.clear(); drawTabela(); } });
