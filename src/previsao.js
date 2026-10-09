@@ -149,7 +149,7 @@
       it.demanda_horizonte = demHoriz;
       it.comprar = Math.max(0, Math.ceil(demHoriz - it.estoque));
     }
-    return { loja: L, gmv: G, itens, meses, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
+    return { loja: L, gmv: G, itens, dias, meses, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
   raiz.Previsao = { calcula, loja, pecas, addMes, diasNoMes, addDias };

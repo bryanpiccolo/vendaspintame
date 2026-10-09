@@ -12,6 +12,20 @@
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const guarda = { le(k, d) { try { const v = localStorage.getItem('pm-est-' + k); return v == null ? d : v; } catch (e) { return d; } }, grava(k, v) { try { localStorage.setItem('pm-est-' + k, v); } catch (e) { /* sem armazenamento */ } } };
 
+  // Produtos que ficam fora do risco de ruptura e da compra sugerida (nome do produto ou categoria).
+  const FORA = [
+    ['Coleção Copa do Mundo (inclui Futebol e kits ⚽)', /copa do mundo|futebol|⚽/i],
+    ['Camisetas adulto', /camiseta adulto/i],
+    ['Camisetas com bolso', /camiseta bolso/i],
+    ['Kits de canetinhas', /^kit de \d+ canetinhas/i],
+    ['Scrunchie', /scrunchie/i],
+    ['Calças', /^cal[cç]a/i],
+    ['Estojos e lancheiras', /estojo|lancheira/i],
+    ['Mochilas', /mochila/i],
+    ['Bermudas e shorts', /bermuda|short/i],
+    ['Casacos, blusões e moletons', /casaco|blus[aã]o|moletom|jaqueta/i],
+  ];
+  const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
   const st = { m: 'pecas', v: guarda.le('visao', 'produto_tamanho'), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo', 45), cobertura: +guarda.le('cobertura', 60) };
   let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
@@ -54,11 +68,11 @@
     const prox = L.futuros.slice(0, 3), soma = prox.reduce((a, b) => a + b.valor, 0), somaLy = prox.reduce((a, b) => a + (sP.get(P.addMes(b.mes, -12)) || 0), 0);
     const v3 = somaLy ? soma / somaLy - 1 : null;
     card('Próximos 3 meses (' + curto(prox[0].mes) + ' a ' + curto(prox[2].mes) + '), peças', int.format(soma), v3 == null ? '' : [el('span', v3 > 0 ? 'pm-up' : 'pm-down', pct.format(v3) + ' vs. mesmos meses do ano anterior')]);
-    const its = R.itens.map((i) => ({ i, s: status(i) }));
+    const its = R.itens.filter((i) => !fora(i)).map((i) => ({ i, s: status(i) }));
     const risco30 = its.filter(({ i, s }) => s === 'zerado' || (i.ruptura && i.share > 0 && diasAte(i.ruptura) <= 30)).length;
     const zer = its.filter(({ s }) => s === 'zerado').length;
     card('Peças em risco de acabar em 30 dias', int.format(risco30), zer ? zer + ' já estão sem estoque' : 'nenhuma está sem estoque');
-    const comprar = R.itens.reduce((a, b) => a + b.comprar, 0), nComprar = R.itens.filter((i) => i.comprar > 0).length;
+    const ok = R.itens.filter((i) => !fora(i)), comprar = ok.reduce((a, b) => a + b.comprar, 0), nComprar = ok.filter((i) => i.comprar > 0).length;
     card('Compra sugerida (peças)', int.format(comprar), 'em ' + int.format(nComprar) + ' produtos/tamanhos');
   }
 
@@ -103,42 +117,6 @@
     }).on('mouseleave', () => { tip.hidden = true; });
   }
 
-  // ---------- gráfico diário do mês ----------
-  function drawDiario() {
-    const L = R.loja;
-    const porDia = new Map(DADOS.diario_total.map((r) => [r.day, r.net_items_sold || 0]));
-    const nd = P.diasNoMes(mesRef), mesLy = P.addMes(mesRef, -12), ndLy = P.diasNoMes(mesLy);
-    const prev = new Map(L.diasRestantes.map((d) => [d.dia, d.valor]));
-    const dias = []; for (let d = 1; d <= nd; d++) { const k = mesRef + '-' + String(d).padStart(2, '0'); const kl = mesLy + '-' + String(Math.min(d, ndLy)).padStart(2, '0'); dias.push({ k, d, real: k <= ref ? (porDia.get(k) || 0) : null, prev: prev.get(k) ?? null, ly: d <= ndLy ? porDia.get(kl) ?? null : null }); }
-    document.getElementById('est-diario-titulo').textContent = cap(nomeMes(mesRef, { year: undefined })) + ' dia a dia (peças)';
-    document.getElementById('est-diario-nota').textContent = `Até ontem (${dataCurta(ref)}) foram ${int.format(L.mtd)} peças. Pela curva dos últimos 12 meses, até este dia costuma estar vendido ${pct.format(L.parcela).replace('+', '')} do mês; no ritmo atual o mês fecharia em ${int.format(L.ritmo)} peças e pela sazonalidade em ${int.format(L.sazonal)}. A previsão usada é ${int.format(L.fechamento)} peças, com ${int.format(L.restante)} nos próximos ${nd - +ref.slice(8)} dias.`;
-    const box = document.getElementById('est-grafico-diario'); box.replaceChildren();
-    const cor = (window.dash && dash.colors && dash.colors[0]) || 'var(--serie-1)';
-    legenda('est-legenda-diario', [[cor, 'Realizado'], [cor, 'Previsto', 0.35], ['var(--color-fg-muted)', 'Mesmo dia do ano anterior']]);
-    const W = Math.max(300, box.clientWidth), H = 220, mt = 10, mb = 24;
-    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vendas do mês por dia, realizadas e previstas');
-    const x = d3.scaleBand(dias.map((d) => d.k), [0, W]).paddingInner(0.2).paddingOuter(0.05);
-    const maxV = d3.max(dias, (d) => Math.max(d.real || 0, d.prev || 0, d.ly || 0)) || 1;
-    const y = d3.scaleLinear([0, maxV * 1.08], [H - mb, mt]);
-    svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
-    const g = svg.selectAll('g.b').data(dias).join('g').attr('class', 'b');
-    g.append('rect').attr('x', (d) => x(d.k)).attr('width', x.bandwidth()).attr('y', mt).attr('height', H - mb - mt).attr('fill', 'transparent');
-    g.filter((d) => d.real != null).append('rect').attr('x', (d) => x(d.k)).attr('width', x.bandwidth()).attr('y', (d) => y(d.real)).attr('height', (d) => Math.max(1, y(0) - y(d.real))).attr('rx', 2).attr('fill', cor);
-    g.filter((d) => d.prev != null).append('rect').attr('x', (d) => x(d.k)).attr('width', x.bandwidth()).attr('y', (d) => y(d.prev)).attr('height', (d) => Math.max(1, y(0) - y(d.prev))).attr('rx', 2).attr('fill', cor).attr('fill-opacity', 0.35);
-    const linha = d3.line().defined((d) => d.ly != null).x((d) => x(d.k) + x.bandwidth() / 2).y((d) => y(d.ly));
-    svg.append('path').datum(dias).attr('d', linha).attr('fill', 'none').attr('stroke', 'var(--color-fg-muted)').attr('stroke-width', 1.5).attr('pointer-events', 'none');
-    const passo = x.bandwidth() < 14 ? 5 : x.bandwidth() < 22 ? 2 : 1;
-    g.append('text').attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', H - mb + 16).attr('text-anchor', 'middle').attr('fill', 'var(--color-fg-muted)').style('font-size', '0.68rem').text((d) => (d.d === 1 || d.d % passo === 0) ? d.d : '');
-    const tip = tooltip(box);
-    g.on('mousemove', (ev, d) => {
-      tip.replaceChildren(el('div', 'pm-tip-h', dataBR(d.k)));
-      if (d.real != null) tip.appendChild(el('div', '', 'Vendido: ' + int.format(d.real) + ' peças'));
-      if (d.prev != null) tip.appendChild(el('div', '', 'Previsto: ' + int.format(d.prev) + ' peças'));
-      if (d.ly != null) tip.appendChild(el('div', '', 'Ano anterior: ' + int.format(d.ly) + ' peças'));
-      posTip(tip, box, ev);
-    }).on('mouseleave', () => { tip.hidden = true; });
-  }
-
   // ---------- tabela ----------
   const ordTam = (t) => { if (/^\d+$/.test(t)) return [0, +t]; const Lt = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG']; const i = Lt.indexOf(t); return i >= 0 ? [1, i] : [2, 0]; };
   const cmpTam = (a, b) => { const A = ordTam(a.tamanho), B = ordTam(b.tamanho); return A[0] - B[0] || A[1] - B[1] || String(a.tamanho).localeCompare(String(b.tamanho)); };
@@ -146,20 +124,25 @@
   function linhas() {
     const v = st.v, dims = v.split('_');
     const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes);
-    const its = R.itens.map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
+    const its = R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
     if (v === 'produto_tamanho') return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / 3, n: 1 }));
     const acc = new Map();
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
       let a = acc.get(k);
-      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, comprar: 0, diaria: 0, ruptura: null, status: null, n: 0, nRisco: 0 }; acc.set(k, a); }
+      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, comprar: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
       a.estoque += Math.max(0, i.estoque); a.prev_resto_mes += i.prev_resto_mes; a.m1 += i.prev_meses[meses3[0]]; a.m2 += i.prev_meses[meses3[1]]; a.m3 += i.prev_meses[meses3[2]];
-      a.media3 += i.vendas_janela_fechada / 3; a.comprar += i.comprar; a.diaria += i.cobertura_dias ? Math.max(0, i.estoque) / i.cobertura_dias : 0; a.n++;
-      if (i.ruptura && i.share > 0 && (a.ruptura == null || i.ruptura === 'agora' || (a.ruptura !== 'agora' && i.ruptura < a.ruptura))) a.ruptura = i.ruptura;
-      if (a.status == null || STATUS[i.status].o < STATUS[a.status].o) a.status = i.status; a.cont = a.cont || {}; a.cont[i.status] = (a.cont[i.status] || 0) + 1;
+      a.media3 += i.vendas_janela_fechada / 3; a.comprar += i.comprar; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
       if (i.comprar > 0) a.nRisco++;
     }
-    return [...acc.values()].map((a) => ({ ...a, cobertura_dias: a.diaria > 0 ? a.estoque / a.diaria : null }));
+    const d30 = R.dias.slice(0, 30).reduce((x, d) => x + d.valor, 0) / 30;
+    return [...acc.values()].map((a) => {
+      let soma = 0, rup = null;
+      for (const d of R.dias) { soma += a.share * d.valor; if (soma > a.estoque) { rup = d.dia; break; } }
+      const g = { ...a, ruptura: a.estoque <= 0 && a.share > 0 ? 'agora' : rup, cobertura_dias: a.share > 0 ? a.estoque / (a.share * d30) : null };
+      g.status = status(g);
+      return g;
+    }).filter((g) => g.status);
   }
 
   function drawTabela() {
@@ -214,8 +197,8 @@
       for (const c of cols) {
         let td;
         if (c.txt) { td = el('td', 'pm-txt' + (c.size ? ' pm-size' : ''), r[c.f]); }
-        else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t + (r.n > 1 ? ' (' + r.cont[r.status] + ')' : '')); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1 && r.nRisco) td.appendChild(el('small', 'pm-sub', r.nRisco + ' de ' + r.n + ' para comprar')); }
-        else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'já acabou' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
+        else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
+        else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
         else { td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)'; }
         if (c.sm) td.classList.add('pm-hide-sm');
         tr.appendChild(td);
@@ -227,7 +210,7 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado pelo que acaba primeiro; clique nos títulos para reordenar.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado pelo que acaba primeiro; clique nos títulos para reordenar. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
@@ -236,7 +219,7 @@
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
   }
 
-  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawMensal(); drawDiario(); drawTabela(); }
+  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawMensal(); drawTabela(); }
   window.drawEstoque = desenha;
   window.EstoqueAba = { define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); }, carregado: () => !!DADOS };
 
@@ -248,5 +231,5 @@
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));
-  let larg = 0; window.addEventListener('resize', () => { const w = document.getElementById('aba-estoque').clientWidth; if (DADOS && R && w && Math.abs(w - larg) > 40) { larg = w; drawMensal(); drawDiario(); } });
+  let larg = 0; window.addEventListener('resize', () => { const w = document.getElementById('aba-estoque').clientWidth; if (DADOS && R && w && Math.abs(w - larg) > 40) { larg = w; drawMensal(); } });
 })();
