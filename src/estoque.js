@@ -76,6 +76,31 @@
     card('Compra sugerida (peças)', int.format(comprar), 'em ' + int.format(nComprar) + ' produtos/tamanhos');
   }
 
+  // ---------- premissas ----------
+  function drawPremissas() {
+    const L = R.loja, s = serieMensal('pecas'), box = document.getElementById('est-premissas');
+    const p1 = (v) => v == null ? '—' : pct.format(v);
+    const nomesBase = L.base.slice().reverse().map((m) => nomeMes(m, { year: undefined })).join(' e ');
+    const lis = [
+      `Queda de base: ${nomesBase} somados venderam ${pct.format(Math.abs(L.varBase)).replace('+', '')} ${L.varBase < 0 ? 'menos' : 'mais'} que os mesmos meses do ano anterior. A previsão reduz essa queda em partes iguais a cada mês, até vender igual ao ano anterior em ${nomeMes(L.jan)}.`,
+      `${cap(nomeMes(L.jan, { year: undefined }))}: previsão de dezembro × ${L.relJan.toFixed(2).replace('.', ',')} (média de quanto janeiro vendeu em relação ao dezembro anterior nas viradas ${L.viradas.map((v) => curto(v.dez) + ' → ' + curto(v.jan)).reverse().join(' e ')}), nunca abaixo de ${nomeMes(P.addMes(L.jan, -12))}.`,
+      `Depois de janeiro: segue o sobe e desce de ${L.anoPerfil}, mês a mês.`,
+      `${cap(nomeMes(mesRef, { year: undefined }))}: até ontem foram ${int.format(L.mtd)} peças. No ano passado, até este dia, já estava vendido ${pct.format(L.parcela).replace('+', '')} do mês, então no ritmo atual fecharia em ${int.format(L.ritmo)}; pela regra da queda fecharia em ${int.format(L.sazonal)}. A previsão junta os dois: ${int.format(L.fechamento)} peças. Os dias que faltam seguem a curva diária do mesmo mês do ano passado.`,
+      `Por peça: participação nas vendas de ${nomesBase} e do mês atual. Compra × 1,3 para o quarto de peças com maior sell-through (a partir de ${pct.format(R.cortesST[0][0]).replace('+', '')}) e × 1,15 para o quarto seguinte (a partir de ${pct.format(R.cortesST[1][0]).replace('+', '')}).`,
+    ];
+    const ul = el('ul', 'pm-regras'); for (const t of lis) ul.appendChild(el('li', '', t));
+    const tb = el('table', 'pm-table'); const th = el('tr');
+    for (const t of ['Mês', 'Ano anterior', 'Variação', 'Previsto']) th.appendChild(el('th', t === 'Mês' ? 'pm-txt' : '', t));
+    tb.appendChild(el('thead')).appendChild(th); const bd = el('tbody');
+    for (const f of [{ mes: mesRef, valor: L.fechamento }, ...L.futuros]) {
+      const ly = s.get(P.addMes(f.mes, -12)), v = ly ? f.valor / ly - 1 : null, tr = el('tr');
+      tr.append(el('td', 'pm-txt', cap(nomeMes(f.mes)) + (f.mes === mesRef ? ' (em andamento)' : '')), el('td', '', ly == null ? '—' : int.format(ly)), el('td', v == null ? '' : v >= 0 ? 'pm-up' : 'pm-down', p1(v)), el('td', '', int.format(f.valor)));
+      bd.appendChild(tr);
+    }
+    tb.appendChild(bd);
+    box.replaceChildren(ul, tb);
+  }
+
   // ---------- gráfico mensal ----------
   function tooltip(box) { const t = el('div', 'pm-tip'); t.hidden = true; box.appendChild(t); return t; }
   function posTip(tip, box, ev) { const [mx, my] = d3.pointer(ev, box); tip.hidden = false; tip.style.left = Math.max(0, Math.min(box.clientWidth - tip.offsetWidth, mx + 12)) + 'px'; tip.style.top = Math.max(0, my - tip.offsetHeight - 8) + 'px'; }
@@ -125,20 +150,21 @@
     const v = st.v, dims = v.split('_');
     const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes);
     const its = R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
-    if (v === 'produto_tamanho') return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / 3, n: 1 }));
+    if (v === 'produto_tamanho') return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
     const acc = new Map();
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
       let a = acc.get(k);
-      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, comprar: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
+      if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {} }; acc.set(k, a); }
       a.estoque += Math.max(0, i.estoque); a.prev_resto_mes += i.prev_resto_mes; a.m1 += i.prev_meses[meses3[0]]; a.m2 += i.prev_meses[meses3[1]]; a.m3 += i.prev_meses[meses3[2]];
-      a.media3 += i.vendas_janela_fechada / 3; a.comprar += i.comprar; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
+      a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
       if (i.comprar > 0) a.nRisco++;
     }
     const d30 = R.dias.slice(0, 30).reduce((x, d) => x + d.valor, 0) / 30;
     return [...acc.values()].map((a) => {
       let soma = 0, rup = null;
       for (const d of R.dias) { soma += a.share * d.valor; if (soma > a.estoque) { rup = d.dia; break; } }
+      a.sell_through = a.vj > 0 ? a.vj / (a.vj + a.estoque) : null;
       const g = { ...a, ruptura: a.estoque <= 0 && a.share > 0 ? 'agora' : rup, cobertura_dias: a.share > 0 ? a.estoque / (a.share * d30) : null };
       g.status = status(g);
       return g;
@@ -157,7 +183,8 @@
     cols.push(
       { f: 'status', label: 'Situação', st: true },
       { f: 'estoque', label: 'Estoque hoje', fmt: (x) => int.format(x) },
-      { f: 'media3', label: 'Média/mês (3 meses)', fmt: (x) => int.format(x), sm: true },
+      { f: 'media3', label: 'Média/mês (' + P.REGRAS.mesesBase + ' meses)', fmt: (x) => int.format(x), sm: true },
+      { f: 'sell_through', label: 'Sell-through', st2: true },
       { f: 'prev_resto_mes', label: 'Previsto resto de ' + nm, fmt: (x) => int.format(x) },
       { f: 'm1', label: 'Prev. ' + curto(meses3[0]), fmt: (x) => int.format(x) },
       { f: 'm2', label: 'Prev. ' + curto(meses3[1]), fmt: (x) => int.format(x), sm: true },
@@ -198,6 +225,7 @@
         let td;
         if (c.txt) { td = el('td', 'pm-txt' + (c.size ? ' pm-size' : ''), r[c.f]); }
         else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
+        else if (c.st2) { td = el('td', '', r.sell_through == null ? '—' : pct.format(r.sell_through).replace('+', '')); if (r.fator && r.fator > 1) td.appendChild(el('small', 'pm-sub', 'compra ×' + String(r.fator).replace('.', ','))); }
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
         else { td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)'; }
         if (c.sm) td.classList.add('pm-hide-sm');
@@ -219,7 +247,7 @@
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
   }
 
-  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawMensal(); drawTabela(); }
+  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawTabela(); }
   window.drawEstoque = desenha;
   window.EstoqueAba = { define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); }, carregado: () => !!DADOS };
 

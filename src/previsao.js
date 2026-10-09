@@ -1,17 +1,21 @@
 // Previsão de vendas e de ruptura de estoque (só vendas do site/Shopify).
 //
-// Método:
-// 1. Loja: sazonalidade mensal pela razão entre cada mês e a média móvel centrada de 12 meses
-//    (meses de 2024 em diante). Nível atual = média dos 3 últimos meses fechados sem a sazonalidade.
-//    Previsão de um mês futuro = nível × índice do mês.
-// 2. Mês corrente: curva de quanto do mês costuma estar vendido em cada dia (12 meses fechados mais
-//    recentes). O fechamento previsto mistura o ritmo do mês (vendido até ontem ÷ parcela da curva)
-//    com a previsão sazonal, dando mais peso ao ritmo do mês conforme ele avança.
-// 3. Produto/tamanho: a previsão da loja em peças é dividida pela participação de cada peça nas vendas
-//    dos últimos 3 meses fechados + mês corrente. Variantes de 6 e 12 canetinhas do mesmo tamanho e cor
-//    são a mesma peça física e contam juntas; o estoque delas conta uma vez só.
-// 4. Ruptura: dia em que a venda prevista acumulada passa o estoque de hoje. Compra sugerida =
-//    venda prevista durante (prazo de reposição + cobertura desejada) − estoque de hoje.
+// Regras (as mesmas mostradas na aba Estoque, em "Premissas"):
+// 1. Queda contra o ano passado: a dos 2 últimos meses fechados somados. A previsão diminui essa queda
+//    em partes iguais a cada mês, até zerar (vender igual ao ano passado) no próximo janeiro.
+//    Mês futuro até dezembro = mesmo mês do ano passado × (1 + variação do mês).
+// 2. Janeiro = previsão de dezembro × média da relação janeiro/dezembro dos 2 últimos viradas de ano,
+//    nunca abaixo do janeiro do ano passado.
+// 3. Depois de janeiro: segue o perfil de vendas mês a mês do último ano completo (2025).
+// 4. Mês corrente: curva diária do mesmo mês do ano passado (datas como Dia das Crianças e Black Friday).
+//    O fechamento junta o ritmo do mês (vendido até ontem ÷ parte que costuma estar vendida) com a regra 1,
+//    dando mais peso ao ritmo conforme o mês avança. Os dias seguintes seguem a mesma curva.
+// 5. Produto/tamanho: participação de cada peça nas vendas dos 2 últimos meses fechados + mês atual.
+//    Variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça física.
+// 6. Ruptura: dia em que a venda prevista acumulada passa o estoque de hoje.
+// 7. Comprar = venda prevista em (prazo + cobertura) × fator de sell-through − estoque de hoje.
+//    Sell-through da peça = vendas da janela ÷ (vendas da janela + estoque de hoje); quartil de cima × 1,3,
+//    segundo quartil × 1,15, demais × 1.
 (function (raiz) {
   const TXT = new Set(['product_type', 'product_title', 'product_variant_title']);
   const abre = (c) => Array.isArray(c) ? c : c.linhas.map((l) => Object.fromEntries(c.campos.map((f, i) => [f, TXT.has(f) ? c.dic[l[i]] : l[i]])));
@@ -36,66 +40,76 @@
   };
   const nomeLimpo = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
+  const REGRAS = { mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]] };
+
   function loja(D, metrica) {
     const val = (r) => metrica === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0);
     const ref = D.referencia, mesRef = ref.slice(0, 7), diaRef = +ref.slice(8, 10);
     const serie = new Map(D.mensal.map((r) => [String(r.month).slice(0, 7), val(r)]));
     const meses = [...serie.keys()].sort();
-    const fechados = meses.filter((m) => m < mesRef || (m === mesRef && diaRef === diasNoMes(m)));
-    const x = (k) => serie.get(k);
-    // razão para a média móvel centrada 2x12
-    const razoes = {};
-    for (const t of fechados) {
-      if (t < '2024-01') continue;
-      const viz = []; for (let i = -6; i <= 6; i++) viz.push(x(addMes(t, i)));
-      if (viz.some((v) => v == null) || addMes(t, 6) > fechados[fechados.length - 1]) continue;
-      const ma = (0.5 * viz[0] + viz.slice(1, 12).reduce((a, b) => a + b, 0) + 0.5 * viz[12]) / 12;
-      if (ma > 0) (razoes[t.slice(5)] = razoes[t.slice(5)] || []).push(x(t) / ma);
+    const x = (k) => serie.get(k) || 0;
+    const fimMes = diaRef === diasNoMes(mesRef);
+    const ultFechado = fimMes ? mesRef : addMes(mesRef, -1);
+    // 1. variação dos últimos meses fechados contra o ano anterior
+    const base = []; for (let i = 0; i < REGRAS.mesesBase; i++) base.push(addMes(ultFechado, -i));
+    const somaB = base.reduce((a, m) => a + x(m), 0), somaLy = base.reduce((a, m) => a + x(addMes(m, -12)), 0);
+    const varBase = somaLy > 0 ? somaB / somaLy - 1 : 0;
+    // próximo janeiro depois do último mês fechado
+    let jan = addMes(ultFechado, 1); while (jan.slice(5) !== '01') jan = addMes(jan, 1);
+    let passos = 0; for (let m = ultFechado; m < jan; m = addMes(m, 1)) passos++;
+    const variacao = (m) => { let i = 0; for (let k = ultFechado; k < m; k = addMes(k, 1)) i++; return varBase < 0 ? varBase * (1 - i / passos) : varBase; };
+    // 2. relação janeiro/dezembro das 2 últimas viradas de ano com dados
+    const viradas = [];
+    for (let y = +jan.slice(0, 4) - 1; y >= 2020 && viradas.length < 2; y--) { const j = y + '-01', d = (y - 1) + '-12'; if (x(j) > 0 && x(d) > 0) viradas.push({ jan: j, dez: d, r: x(j) / x(d) }); }
+    const relJan = viradas.length ? viradas.reduce((a, v) => a + v.r, 0) / viradas.length : 1;
+    // 3. perfil do último ano completo
+    let anoPerfil = +jan.slice(0, 4) - 1; while (anoPerfil > 2020 && !(x(anoPerfil + '-01') > 0 && x(anoPerfil + '-12') > 0)) anoPerfil--;
+    const perfil = (m) => x(anoPerfil + '-' + m.slice(5));
+    const prev = new Map(), variacoes = new Map();
+    const horizonteFim = addMes(mesRef, 6);
+    for (let m = addMes(ultFechado, 1); m <= horizonteFim; m = addMes(m, 1)) {
+      let v;
+      if (m < jan) { const vr = variacao(m); v = x(addMes(m, -12)) * (1 + vr); }
+      else if (m === jan) { v = Math.max(prev.get(addMes(jan, -1)) * relJan, x(addMes(jan, -12))); }
+      else { const pj = perfil(jan); v = pj > 0 ? prev.get(jan) * perfil(m) / pj : prev.get(addMes(m, -1)); }
+      prev.set(m, v);
+      const ly = x(addMes(m, -12)); variacoes.set(m, ly > 0 ? v / ly - 1 : null);
     }
-    const S = {};
-    for (let n = 1; n <= 12; n++) { const k = String(n).padStart(2, '0'); const r = razoes[k] || [1]; S[k] = r.reduce((a, b) => a + b, 0) / r.length; }
-    const mediaS = Object.values(S).reduce((a, b) => a + b, 0) / 12; for (const k in S) S[k] /= mediaS;
-    const ult3 = fechados.slice(-3);
-    const nivel = ult3.reduce((a, m) => a + x(m) / S[m.slice(5)], 0) / ult3.length;
-    // curva intramês (parcela acumulada vendida até o dia d), últimos 12 meses fechados com dados diários
-    const porDia = new Map(D.diario_total.map((r) => [r.day, val(r)]));
-    const curvas = [];
-    for (let i = 1; i <= 12; i++) {
-      const m = addMes(mesRef, -i), nd = diasNoMes(m);
-      const v = []; let ok = true;
-      for (let d = 1; d <= nd; d++) { const k = m + '-' + String(d).padStart(2, '0'); if (!porDia.has(k)) { ok = false; break; } v.push(porDia.get(k)); }
+    // 4. curva diária do mesmo mês do ano passado
+    const porDia = new Map(D.diario_total.map((r) => [String(r.day).slice(0, 10), val(r)]));
+    const pesosDia = (m) => {
+      const nd = diasNoMes(m), ly = addMes(m, -12), ndl = diasNoMes(ly), v = [];
+      let ok = true;
+      for (let d = 1; d <= nd; d++) { const k = ly + '-' + String(Math.min(d, ndl)).padStart(2, '0'); if (!porDia.has(k)) { ok = false; break; } v.push(Math.max(0, porDia.get(k))); }
       const tot = v.reduce((a, b) => a + b, 0);
-      if (ok && tot > 0) { let acc = 0; curvas.push(v.map((y) => (acc += y) / tot).map((c, j) => ({ frac: (j + 1) / nd, c }))); }
-    }
-    // parcela acumulada por fração do mês (os meses têm tamanhos diferentes)
-    const parcela = (frac) => {
-      if (!curvas.length) return frac;
-      const vals = curvas.map((cv) => { const i = Math.min(cv.length - 1, Math.max(0, Math.round(frac * cv.length) - 1)); return cv[i].c; });
-      return vals.reduce((a, b) => a + b, 0) / vals.length;
+      return ok && tot > 0 ? v.map((y) => y / tot) : Array(nd).fill(1 / nd);
     };
-    const ndRef = diasNoMes(mesRef);
-    const mtd = x(mesRef) || 0;
-    const c = Math.min(0.999, Math.max(0.001, parcela(diaRef / ndRef)));
-    const sazonal = nivel * S[mesRef.slice(5)];
-    const ritmo = mtd / c;
-    const fechamento = c * ritmo + (1 - c) * sazonal; // mistura: cada vez mais o ritmo do mês
-    const restante = Math.max(0, fechamento - mtd);
-    // previsão diária do restante do mês, pela curva
+    const ndRef = diasNoMes(mesRef), pRef = pesosDia(mesRef);
+    const mtd = fimMes ? 0 : x(mesRef);
+    let fechamento = 0, restante = 0, c = 1, ritmo = 0, sazonal = 0;
     const diasRestantes = [];
-    for (let d = diaRef + 1; d <= ndRef; d++) {
-      const inc = Math.max(0, parcela(d / ndRef) - parcela((d - 1) / ndRef));
-      diasRestantes.push({ dia: mesRef + '-' + String(d).padStart(2, '0'), inc });
+    if (!fimMes) {
+      c = Math.min(0.999, Math.max(0.001, pRef.slice(0, diaRef).reduce((a, b) => a + b, 0)));
+      sazonal = prev.get(mesRef); ritmo = mtd / c;
+      fechamento = c * ritmo + (1 - c) * sazonal;
+      restante = Math.max(0, fechamento - mtd);
+      const resto = pRef.slice(diaRef), sr = resto.reduce((a, b) => a + b, 0) || 1;
+      resto.forEach((w, i) => diasRestantes.push({ dia: mesRef + '-' + String(diaRef + 1 + i).padStart(2, '0'), valor: restante * w / sr }));
+      prev.set(mesRef, fechamento);
+      const ly = x(addMes(mesRef, -12)); variacoes.set(mesRef, ly > 0 ? fechamento / ly - 1 : null);
     }
-    const somaInc = diasRestantes.reduce((a, b) => a + b.inc, 0) || 1;
-    diasRestantes.forEach((d) => { d.valor = restante * d.inc / somaInc; });
     const futuros = [];
-    for (let i = 1; i <= 6; i++) { const m = addMes(mesRef, i); futuros.push({ mes: m, valor: nivel * S[m.slice(5)] }); }
-    return { S, nivel, mtd, parcela: c, ritmo, sazonal, fechamento, restante, diasRestantes, futuros, mesRef, historico: meses.map((m) => ({ mes: m, valor: x(m) })) };
+    for (let i = 1; i <= 6; i++) { const m = addMes(mesRef, i); futuros.push({ mes: m, valor: prev.get(m), variacao: variacoes.get(m), pesos: pesosDia(m) }); }
+    return {
+      mtd, parcela: c, ritmo, sazonal, fechamento, restante, diasRestantes, futuros, mesRef, ultFechado,
+      base, varBase, variacaoMesAtual: variacao(mesRef), jan, viradas, relJan, anoPerfil, variacoes,
+      historico: meses.map((m) => ({ mes: m, valor: x(m) })),
+    };
   }
 
   function pecas(D) {
     const ref = D.referencia, mesRef = ref.slice(0, 7);
-    const janela = new Set([addMes(mesRef, -3), addMes(mesRef, -2), addMes(mesRef, -1), mesRef]);
+    const janela = new Set([mesRef]); for (let i = 1; i <= REGRAS.mesesBase; i++) janela.add(addMes(mesRef, -i));
     const P = abre(D.produtos);
     const chave = (r) => nomeLimpo(r.product_title) + '\u0001' + fisico(r.product_variant_title);
     const acc = new Map();
@@ -133,9 +147,15 @@
     // demanda da loja por dia, de amanhã em diante (resto do mês + 6 meses)
     const dias = [];
     for (const d of L.diasRestantes) dias.push({ dia: d.dia, valor: d.valor });
-    for (const f of L.futuros) { const nd = diasNoMes(f.mes); for (let i = 1; i <= nd; i++) dias.push({ dia: f.mes + '-' + String(i).padStart(2, '0'), valor: f.valor / nd }); }
+    for (const f of L.futuros) f.pesos.forEach((w, i) => dias.push({ dia: f.mes + '-' + String(i + 1).padStart(2, '0'), valor: f.valor * w }));
     const horizonte = prazo + cobertura;
     const meses = [L.mesRef, ...L.futuros.map((f) => f.mes)];
+    // sell-through da janela e fator de compra por quartil
+    for (const it of itens) it.sell_through = it.vendas_janela > 0 ? it.vendas_janela / (it.vendas_janela + Math.max(0, it.estoque)) : null;
+    const sts = itens.map((i) => i.sell_through).filter((v) => v != null).sort((a, b) => a - b);
+    const quantil = (q) => sts.length ? sts[Math.min(sts.length - 1, Math.floor(q * sts.length))] : 1;
+    const cortes = REGRAS.fatorST.map(([q, f]) => [quantil(q), f]);
+    for (const it of itens) it.fator = it.sell_through == null ? 1 : (cortes.find(([c]) => it.sell_through >= c) || [0, 1])[1];
     for (const it of itens) {
       const share = Math.max(0, it.vendas_janela) / totalJanela;
       it.share = share;
@@ -147,11 +167,11 @@
       const diaria30 = dias.slice(0, 30).reduce((a, d) => a + share * d.valor, 0) / 30;
       it.cobertura_dias = diaria30 > 0 ? it.estoque / diaria30 : null;
       it.demanda_horizonte = demHoriz;
-      it.comprar = Math.max(0, Math.ceil(demHoriz - it.estoque));
+      it.comprar = Math.max(0, Math.ceil(demHoriz * it.fator - it.estoque));
     }
-    return { loja: L, gmv: G, itens, dias, meses, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
+    return { loja: L, gmv: G, itens, dias, meses, cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
-  raiz.Previsao = { calcula, loja, pecas, addMes, diasNoMes, addDias };
+  raiz.Previsao = { REGRAS, calcula, loja, pecas, addMes, diasNoMes, addDias };
   if (typeof module !== 'undefined') module.exports = raiz.Previsao;
 })(typeof window !== 'undefined' ? window : globalThis);
