@@ -200,7 +200,7 @@
     const rupK = (r) => r.ruptura === 'agora' ? '0000' : r.ruptura || '9999';
     const sc = st.sort, dir = st.dir;
     rows.sort((a, b) => {
-      if (!sc) return STATUS[a.status].o - STATUS[b.status].o || rupK(a).localeCompare(rupK(b)) || b.comprar - a.comprar || b.media3 - a.media3;
+      if (!sc) return (b.vj || 0) - (a.vj || 0) || b.media3 - a.media3 || b.comprar - a.comprar;
       if (sc === 'tamanho') return dir * cmpTam(a, b);
       if (sc === 'status') return dir * (STATUS[a.status].o - STATUS[b.status].o);
       if (sc === 'ruptura') return dir * rupK(a).localeCompare(rupK(b));
@@ -238,7 +238,7 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado pelo que acaba primeiro; clique nos títulos para reordenar. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
