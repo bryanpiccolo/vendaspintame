@@ -15,9 +15,18 @@
   // Tecido estampado (todas as estampas): comprado em rolos.
   raiz.TECIDO_ESTAMPADO = { nome: 'Baviera Estampado 100% algodão', fornecedor: 'Lancaster', codigo: '19044', gramatura: 150, largura: 1.78, precoKg: 82.5, mPorKg: 3.74, kgRolo: 16, minRolos: 3 };
   const T = raiz.TECIDO_ESTAMPADO;
+  // Código de cada estampa no fornecedor; o tecido da ficha é ligado pela palavra-chave.
+  raiz.ESTAMPAS = [
+    { nome: 'Dia de Brincar', codigo: '202820-1R', chave: /brincar/i },
+    { nome: 'Pets', codigo: '202821-1R', chave: /pets/i },
+    { nome: 'Viagem Colorida', codigo: '204162-1R', chave: /viagem/i },
+    { nome: 'Voa Passarinho', codigo: '204163-1R', chave: /passarinho/i },
+    { nome: 'Alfabeto da PINTA', codigo: '207021-1R', chave: /alfabeto/i },
+    { nome: 'Tangram', codigo: '211932-1R', chave: /tangram/i },
+  ];
   const f = (sku, nome, produto, materiais, mao) => ({
     sku, nome, produto,
-    materiais: [...materiais, ...COMUNS].map(([insumo, porPeca, unidade, preco]) => { const estampa = /^tecido/i.test(insumo); return { insumo, porPeca, unidade, preco: estampa ? T.precoKg / T.mPorKg : preco, tecido: /^(tecido|ribana|tule)/i.test(insumo), estampa, codigo: estampa ? T.codigo : '' }; }),
+    materiais: [...materiais, ...COMUNS].map(([insumo, porPeca, unidade, preco]) => { const estampa = /^tecido/i.test(insumo); const e = estampa ? raiz.ESTAMPAS.find((x) => x.chave.test(insumo)) : null; return { insumo: e ? 'Estampa ' + e.nome : insumo, porPeca, unidade, preco: estampa ? T.precoKg / T.mPorKg : preco, tecido: /^(tecido|ribana|tule)/i.test(insumo), estampa, codigo: e ? e.codigo : '', codigoTecido: estampa ? T.codigo : '' }; }),
     mao: mao.map(([etapa, preco]) => ({ etapa, preco })),
   });
   raiz.FICHAS = [
