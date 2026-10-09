@@ -285,7 +285,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
 <script>
 const DADOS = /*DADOS*/null;
 window.dash = (() => {
-  const TXT = new Set(['product_type', 'product_title', 'product_variant_title']);
+  const TXT = new Set(['product_type', 'product_title', 'product_variant_title', 'product_variant_sku']);
   const abre = (c) => c.linhas.map((l) => Object.fromEntries(c.campos.map((f, i) => [f, TXT.has(f) ? c.dic[l[i]] : l[i]])));
   const P = abre(DADOS.produtos), PO = abre(DADOS.produtos_ontem), E = abre(DADOS.estoque), EO = abre(DADOS.estoque_ontem);
   const mes0 = 'm:' + DADOS.referencia.slice(0, 7);

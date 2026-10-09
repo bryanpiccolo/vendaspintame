@@ -3,6 +3,7 @@
 .pm-qtd.pm-on { border-color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
 .pm-btn { font: inherit; font-size: var(--cds-font-size-caption); background: var(--color-panel); color: var(--color-fg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); cursor: pointer; }
 .pm-btn:hover { border-color: var(--color-fg-muted); }
+.pm-btn:disabled { opacity: .45; cursor: default; }
 .pm-btn-pri { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
 .pm-cab td { background: color-mix(in srgb, var(--color-fg) 5%, transparent); font-weight: var(--cds-font-weight-medium); }
 .pm-ok-msg { font-size: var(--cds-font-size-caption); color: var(--color-ok); min-height: 1.2em; }
@@ -33,6 +34,7 @@
         <button type="button" data-f="escolhidos">Só o que vamos comprar</button>
       </div>
       <button type="button" class="pm-btn" id="compra-preencher">Preencher com a sugestão</button>
+      <button type="button" class="pm-btn" id="compra-desfazer" disabled>Desfazer</button>
       <button type="button" class="pm-btn" id="compra-limpar">Limpar tudo</button>
       <input class="pm-search" id="compra-busca" type="search" placeholder="Buscar produto ou tamanho" aria-label="Buscar produto">
     </div>

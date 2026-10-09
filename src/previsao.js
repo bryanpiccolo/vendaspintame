@@ -20,7 +20,7 @@
 //    Sell-through da peça = vendas da janela ÷ (vendas da janela + estoque de hoje); quartil de cima × 1,3,
 //    segundo quartil × 1,15, demais × 1.
 (function (raiz) {
-  const TXT = new Set(['product_type', 'product_title', 'product_variant_title']);
+  const TXT = new Set(['product_type', 'product_title', 'product_variant_title', 'product_variant_sku']);
   const abre = (c) => Array.isArray(c) ? c : c.linhas.map((l) => Object.fromEntries(c.campos.map((f, i) => [f, TXT.has(f) ? c.dic[l[i]] : l[i]])));
   const addMes = (k, n) => { let [y, m] = k.split('-').map(Number); m += n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + '-' + String(m).padStart(2, '0'); };
   const diasNoMes = (k) => { const [y, m] = k.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
@@ -145,7 +145,7 @@
     const acc = new Map();
     const pega = (r) => {
       const k = chave(r); let a = acc.get(k);
-      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: categoriaDe(r.product_title, r.product_type), vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0 }; acc.set(k, a); }
+      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: categoriaDe(r.product_title, r.product_type), vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0, skus: [] }; acc.set(k, a); }
       if (a.categoria === 'Sem categoria' && r.product_type) a.categoria = categoriaDe(r.product_title, r.product_type);
       return a;
     };
@@ -164,6 +164,8 @@
       if (!r.product_title) continue;
       const a = pega(r);
       a.estoque = Math.max(a.estoque, r.ending_inventory_units || 0);
+      const sku = String(r.product_variant_sku || '').trim();
+      if (sku && !a.skus.includes(sku)) a.skus.push(sku);
     }
     return [...acc.values()];
   }

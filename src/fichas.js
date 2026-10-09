@@ -19,13 +19,13 @@
   });
   raiz.FICHAS = [
     f('VEVP', 'Vestido Voa Passarinho', /^vestido infantil para colorir voa passarinho/i,
-      [['Tecido Voa Passarinho', 0.649, 'm', 22.90], ['Ribana comum', 0.15, 'm', 19.74]],
+      [['Tecido Voa Passarinho', 0.649, 'm', 22.90], ['Ribana amarela', 0.15, 'm', 19.74]],
       [['Corte', 2.00], ['Costura', 12.90], ['Dobra', 1.40]]),
     f('BLVP', 'Blusa Voa Passarinho', /^blusa infantil para colorir voa passarinho/i,
-      [['Tecido Voa Passarinho', 0.396, 'm', 22.90], ['Ribana comum', 0.15, 'm', 19.74]],
+      [['Tecido Voa Passarinho', 0.396, 'm', 22.90], ['Ribana amarela', 0.15, 'm', 19.74]],
       [['Corte', 1.50], ['Costura', 8.00], ['Dobra', 1.40]]),
     f('CAVP', 'Camiseta Voa Passarinho', /^camiseta infantil para colorir voa passarinho/i,
-      [['Tecido Voa Passarinho', 0.35904, 'm', 22.90], ['Ribana comum', 0.0225, 'm', 19.74]],
+      [['Tecido Voa Passarinho', 0.35904, 'm', 22.90], ['Ribana amarela', 0.0225, 'm', 19.74]],
       [['Corte', 2.00], ['Costura', 5.00], ['Dobra', 1.40]]),
     f('VEDIA', 'Vestido Dia de Brincar', /^vestido infantil para colorir dia de brincar/i,
       [['Tecido Vestido Dia de Brincar', 0.55, 'm', 22.90], ['Tule Vestido Dia de Brincar', 0.165, 'm', 7.55], ['Botão Vestido Dia de Brincar', 1, 'un', 0.0507]],

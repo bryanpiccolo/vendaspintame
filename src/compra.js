@@ -12,14 +12,36 @@
   const ordTam = (t) => { if (/^\d+$/.test(t)) return [0, +t]; const L = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG']; const i = L.indexOf(t); return i >= 0 ? [1, i] : [2, 0]; };
   const cmpTam = (a, b) => { const A = ordTam(a), B = ordTam(b); return A[0] - B[0] || A[1] - B[1] || String(a).localeCompare(String(b)); };
 
+  // Códigos: SKU da variante de 6 canetinhas em cada tamanho; código do produto = começo comum dos SKUs.
+  const skuPeca = (i) => { const s = i.skus || []; return s.find((x) => /(\s0?6|\d{2}06)$/.test(x.trim())) || s[0] || ''; };
+  const codProduto = (its) => {
+    const s = [...new Set(its.flatMap((i) => i.skus || []).map((x) => x.trim().replace(/\s+/g, ' ')).filter(Boolean))];
+    if (!s.length) return '';
+    if (s.every((x) => / /.test(x))) {
+      const toks = s.map((x) => x.split(' ')), out = [];
+      for (let k = 0; k < toks[0].length; k++) { const t = toks[0][k].toUpperCase(); if (toks.every((a) => (a[k] || '').toUpperCase() === t)) out.push(toks[0][k]); else break; }
+      while (s.length === 1 && out.length > 1 && /^\d+$/.test(out[out.length - 1])) out.pop();
+      if (out.length && /^k$/i.test(out[0])) out.shift();
+      return out.join(' ');
+    }
+    let p = s.reduce((a, b) => { let k = 0; while (k < a.length && k < b.length && a[k].toUpperCase() === b[k].toUpperCase()) k++; return a.slice(0, k); });
+    p = s.length === 1 ? p.replace(/\d{4}$/, '') : p.replace(/\d+$/, '');
+    return p.replace(/^k/i, '');
+  };
+  const fichaPor = (cod, produto) => (cod && window.FICHAS.find((f) => f.sku.replace(/\s/g, '').toUpperCase() === cod.replace(/\s/g, '').toUpperCase())) || window.fichaDe(produto);
+
   const st = { f: 'ficha', q: '', qtd: le() };
+  const hist = [];
+  const mudar = (fn) => { hist.push(JSON.stringify(st.qtd)); if (hist.length > 100) hist.shift(); fn(); grava(st.qtd); };
   let base = null;
 
   function itens() {
     const r = window.EstoqueAba && window.EstoqueAba.resultado();
     if (!r) return null;
     base = r;
-    return r.itens.map((i) => ({ ...i, ficha: window.fichaDe(i.produto) })).filter((i) => i.share > 0 || i.comprar > 0 || i.ficha || st.qtd[i.id] > 0);
+    const porProd = new Map(); for (const i of r.itens) { if (!porProd.has(i.produto)) porProd.set(i.produto, []); porProd.get(i.produto).push(i); }
+    const cods = new Map([...porProd.entries()].map(([p, its]) => [p, codProduto(its)]));
+    return r.itens.map((i) => ({ ...i, codigo: cods.get(i.produto) || '', sku: skuPeca(i), ficha: fichaPor(cods.get(i.produto), i.produto) })).filter((i) => i.share > 0 || i.comprar > 0 || i.ficha || st.qtd[i.id] > 0);
   }
 
   function totais(lista) {
@@ -49,6 +71,7 @@
     if (!aba || aba.hidden) return;
     const lista = itens();
     if (!lista) return;
+    const bd = document.getElementById('compra-desfazer'); bd.disabled = !hist.length; bd.textContent = hist.length ? 'Desfazer (' + hist.length + ')' : 'Desfazer';
     document.querySelectorAll('#compra-seg-filtro button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === st.f)));
     document.getElementById('compra-janela').textContent = `Sugestão da aba Estoque com a venda até ${dataBR(base.ref)}: compra que chega em ${base.prazo} dias e cobre ${base.cobertura} dias depois da chegada.`;
     const T = totais(lista);
@@ -67,32 +90,32 @@
     if (st.f === 'ficha') rows = rows.filter((i) => i.ficha);
     else if (st.f === 'sugestao') rows = rows.filter((i) => i.comprar > 0);
     else rows = rows.filter((i) => +st.qtd[i.id] > 0);
-    if (st.q) rows = rows.filter((i) => (i.produto + ' ' + i.tamanho + ' ' + (i.ficha ? i.ficha.sku : '')).toLowerCase().includes(st.q));
+    if (st.q) rows = rows.filter((i) => (i.produto + ' ' + i.tamanho + ' ' + i.codigo + ' ' + i.sku + ' ' + (i.ficha ? i.ficha.sku : '')).toLowerCase().includes(st.q));
     const porProd = new Map();
     for (const i of rows) { const k = i.produto; if (!porProd.has(k)) porProd.set(k, []); porProd.get(k).push(i); }
-    const prods = [...porProd.entries()].map(([p, its]) => ({ p, its: its.sort((a, b) => cmpTam(a.tamanho, b.tamanho)), vj: its.reduce((a, b) => a + b.vendas_janela, 0), ficha: its[0].ficha }))
+    const prods = [...porProd.entries()].map(([p, its]) => ({ p, its: its.sort((a, b) => cmpTam(a.tamanho, b.tamanho)), vj: its.reduce((a, b) => a + b.vendas_janela, 0), ficha: its[0].ficha, codigo: its[0].codigo }))
       .sort((a, b) => b.vj - a.vj);
     const table = document.getElementById('compra-tabela');
     const hr = table.querySelector('thead tr'); hr.replaceChildren();
-    for (const [t, txt] of [['Produto / tamanho', 1], ['Ficha', 1], ['Estoque hoje', 0], ['Acaba em', 0], ['Sugestão', 0], ['Vamos comprar', 0], ['Tecido (m)', 0]]) hr.appendChild(el('th', txt ? 'pm-txt' : '', t));
+    for (const [t, txt] of [['Produto / tamanho', 1], ['Código', 1], ['Estoque hoje', 0], ['Acaba em', 0], ['Sugestão', 0], ['Vamos comprar', 0], ['Tecido (m)', 0]]) hr.appendChild(el('th', txt ? 'pm-txt' : '', t));
     document.getElementById('compra-nota').textContent = 'Digite quantas peças de cada tamanho vão ser compradas. A sugestão vem da aba Estoque (venda prevista × sell-through − sobra de estoque). Ordenado do produto que mais vende para o que menos vende.';
     const body = [];
     const tecidoPeca = (f) => f ? f.materiais.filter((m) => m.tecido && m.unidade === 'm').reduce((a, m) => a + m.porPeca, 0) : 0;
     for (const g of prods) {
       const tot = g.its.reduce((a, i) => a + (+st.qtd[i.id] || 0), 0), sug = g.its.reduce((a, i) => a + i.comprar, 0);
       const tr = el('tr', 'pm-cab');
-      tr.append(el('td', 'pm-txt', g.p), el('td', 'pm-txt', g.ficha ? g.ficha.sku : 'sem ficha'), el('td', '', int.format(g.its.reduce((a, i) => a + Math.max(0, i.estoque), 0))), el('td', '', ''), el('td', '', sug ? int.format(sug) : '—'), el('td', '', tot ? int.format(tot) : '—'), el('td', '', tot && g.ficha ? dec(1).format(tot * tecidoPeca(g.ficha)) : '—'));
+      tr.append(el('td', 'pm-txt', g.p), el('td', 'pm-txt', (g.codigo || (g.ficha ? g.ficha.sku : '—')) + (g.ficha ? '' : ' · sem ficha')), el('td', '', int.format(g.its.reduce((a, i) => a + Math.max(0, i.estoque), 0))), el('td', '', ''), el('td', '', sug ? int.format(sug) : '—'), el('td', '', tot ? int.format(tot) : '—'), el('td', '', tot && g.ficha ? dec(1).format(tot * tecidoPeca(g.ficha)) : '—'));
       body.push(tr);
       for (const i of g.its) {
         const r = el('tr');
         const q = +st.qtd[i.id] || 0;
         const inp = el('input', 'pm-qtd' + (q ? ' pm-on' : '')); inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'numeric'; inp.value = q ? String(q) : ''; inp.placeholder = '0';
         inp.setAttribute('aria-label', 'Quantidade a comprar de ' + i.produto + ' tamanho ' + i.tamanho);
-        inp.addEventListener('change', () => { const v = Math.max(0, Math.round(+inp.value || 0)); if (v === (+st.qtd[i.id] || 0)) return; if (v) st.qtd[i.id] = v; else delete st.qtd[i.id]; grava(st.qtd); setTimeout(desenha, 0); });
+        inp.addEventListener('change', () => { const v = Math.max(0, Math.round(+inp.value || 0)); if (v === (+st.qtd[i.id] || 0)) return; mudar(() => { if (v) st.qtd[i.id] = v; else delete st.qtd[i.id]; }); setTimeout(desenha, 0); });
         const tdq = el('td'); tdq.appendChild(inp);
         const rup = i.ruptura === 'agora' ? 'sem estoque' : i.ruptura ? dataBR(i.ruptura) : '—';
         const tdr = el('td', '', rup); if (i.ruptura && (i.ruptura === 'agora' || i.status === 'urgente')) tdr.classList.add('pm-bad');
-        r.append(el('td', 'pm-txt', 'Tamanho ' + i.tamanho), el('td', 'pm-txt', ''), el('td', '', int.format(Math.max(0, i.estoque))), tdr, el('td', '', i.comprar ? int.format(i.comprar) : '—'), tdq, el('td', '', q && i.ficha ? dec(1).format(q * tecidoPeca(i.ficha)) : '—'));
+        r.append(el('td', 'pm-txt', 'Tamanho ' + i.tamanho), el('td', 'pm-txt', i.sku || '—'), el('td', '', int.format(Math.max(0, i.estoque))), tdr, el('td', '', i.comprar ? int.format(i.comprar) : '—'), tdq, el('td', '', q && i.ficha ? dec(1).format(q * tecidoPeca(i.ficha)) : '—'));
         r.firstChild.style.paddingLeft = '1.4rem';
         body.push(r);
       }
@@ -150,10 +173,10 @@
   document.getElementById('compra-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); desenha(); });
   document.getElementById('compra-preencher').addEventListener('click', () => {
     const lista = itens(); if (!lista) return;
-    let n = 0; for (const i of lista) if (i.comprar > 0 && (st.f !== 'ficha' || i.ficha) && !(st.qtd[i.id] > 0)) { st.qtd[i.id] = i.comprar; n++; }
-    grava(st.qtd); desenha(); msg(n ? n + ' tamanhos preenchidos com a sugestão' : 'Nada para preencher');
+    let n = 0; mudar(() => { for (const i of lista) if (i.comprar > 0 && (st.f !== 'ficha' || i.ficha) && !(st.qtd[i.id] > 0)) { st.qtd[i.id] = i.comprar; n++; } }); if (!n) hist.pop(); desenha(); msg(n ? n + ' tamanhos preenchidos com a sugestão' : 'Nada para preencher');
   });
-  document.getElementById('compra-limpar').addEventListener('click', () => { st.qtd = {}; grava(st.qtd); desenha(); msg('Lista limpa'); });
+  document.getElementById('compra-limpar').addEventListener('click', () => { if (!Object.keys(st.qtd).length) return; mudar(() => { st.qtd = {}; }); desenha(); msg('Lista limpa (dá para desfazer)'); });
+  document.getElementById('compra-desfazer').addEventListener('click', () => { if (!hist.length) { msg('Nada para desfazer'); return; } st.qtd = JSON.parse(hist.pop()); grava(st.qtd); desenha(); msg('Última alteração desfeita'); });
   document.getElementById('compra-copiar').addEventListener('click', async () => {
     const t = textoPedido(); if (!t) { msg('Preencha as quantidades primeiro'); return; }
     try { await navigator.clipboard.writeText(t); msg('Pedido copiado'); }

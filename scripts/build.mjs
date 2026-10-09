@@ -37,7 +37,7 @@ export function consultas() {
     produtos_hist: `FROM sales SHOW ${M_PROD} GROUP BY month, ${DIM} SINCE 2022-01-01 UNTIL ${Y - 2}-12-31 ORDER BY month ASC ${L}`,
     produtos_rec: `FROM sales SHOW ${M_PROD} GROUP BY month, ${DIM} SINCE ${Y - 1}-01-01 UNTIL ${ref} ORDER BY month ASC ${L}`,
     produtos_dia: `FROM sales SHOW ${M_PROD} GROUP BY day, ${DIM} SINCE ${addDias(ref, -29)} UNTIL ${ref} ORDER BY day ASC ${L}`,
-    estoque_ontem: `FROM inventory SHOW ${M_EST} GROUP BY ${DIM} SINCE ${ref} UNTIL ${ref} ORDER BY inventory_units_sold DESC ${L}`,
+    estoque_ontem: `FROM inventory SHOW ${M_EST} GROUP BY ${DIM}, product_variant_sku SINCE ${ref} UNTIL ${ref} ORDER BY inventory_units_sold DESC ${L}`,
     estoque_2023_2024: `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE 2023-01-01 UNTIL 2024-12-31 ORDER BY month ASC ${L}`,
   };
   for (let y = 2025; y <= Y; y++) q[`estoque_${y}`] = `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE ${y}-01-01 UNTIL ${y === Y ? ref : y + '-12-31'} ORDER BY month ASC ${L}`;
@@ -83,7 +83,7 @@ const somaPor = (rows, chave) => {
 function compacta(rows, campos) {
   const dic = [], idx = new Map();
   const id = (s) => { s = String(s ?? ''); if (!idx.has(s)) { idx.set(s, dic.length); dic.push(s); } return idx.get(s); };
-  const texto = new Set(['month', 'product_type', 'product_title', 'product_variant_title']);
+  const texto = new Set(['month', 'product_type', 'product_title', 'product_variant_title', 'product_variant_sku']);
   const linhas = rows
     .filter((r) => campos.some((c) => !texto.has(c) && r[c]))
     .map((r) => campos.map((c) => (c === 'month' ? String(r[c]).slice(0, 7) : texto.has(c) ? id(r[c]) : r[c])));
@@ -114,6 +114,7 @@ async function main() {
 
   const P = ['month', 'product_type', 'product_title', 'product_variant_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit'];
   const E = ['month', 'product_type', 'product_title', 'product_variant_title', 'starting_inventory_units', 'ending_inventory_units', 'inventory_units_sold'];
+  const EO = ['month', 'product_type', 'product_title', 'product_variant_title', 'product_variant_sku', 'starting_inventory_units', 'ending_inventory_units', 'inventory_units_sold'];
   const prodOntem = R.produtos_dia.filter((r) => dia(r) === ref).map((r) => ({ ...r, month: ref }));
   const estoques = Object.keys(R).filter((k) => /^estoque_\d{4}/.test(k)).flatMap((k) => R[k]);
 
@@ -127,7 +128,7 @@ async function main() {
     produtos: compacta([...R.produtos_hist, ...R.produtos_rec], P),
     produtos_ontem: compacta(prodOntem, P),
     estoque: compacta(estoques, E),
-    estoque_ontem: compacta(R.estoque_ontem.map((r) => ({ month: ref, ...r })), E),
+    estoque_ontem: compacta(R.estoque_ontem.map((r) => ({ month: ref, ...r })), EO),
   };
   const tpl = await readFile(path.join(root, 'src', 'painel.html'), 'utf8');
   const d3 = await readFile(path.join(root, 'node_modules', 'd3', 'dist', 'd3.min.js'), 'utf8');
