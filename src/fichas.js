@@ -12,9 +12,12 @@
     ['Adesivo Pintar Brincar e Lavar', 1, 'un', 0.09],
     ['Embalagem plástica', 1, 'un', 0.233],
   ];
+  // Tecido estampado (todas as estampas): comprado em rolos.
+  raiz.TECIDO_ESTAMPADO = { nome: 'Baviera Estampado 100% algodão', fornecedor: 'Lancaster', codigo: '19044', gramatura: 150, largura: 1.78, precoKg: 82.5, mPorKg: 3.74, kgRolo: 16, minRolos: 3 };
+  const T = raiz.TECIDO_ESTAMPADO;
   const f = (sku, nome, produto, materiais, mao) => ({
     sku, nome, produto,
-    materiais: [...materiais, ...COMUNS].map(([insumo, porPeca, unidade, preco]) => ({ insumo, porPeca, unidade, preco, tecido: /^(tecido|ribana|tule)/i.test(insumo) })),
+    materiais: [...materiais, ...COMUNS].map(([insumo, porPeca, unidade, preco]) => { const estampa = /^tecido/i.test(insumo); return { insumo, porPeca, unidade, preco: estampa ? T.precoKg / T.mPorKg : preco, tecido: /^(tecido|ribana|tule)/i.test(insumo), estampa, codigo: estampa ? T.codigo : '' }; }),
     mao: mao.map(([etapa, preco]) => ({ etapa, preco })),
   });
   raiz.FICHAS = [

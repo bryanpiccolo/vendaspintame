@@ -61,7 +61,14 @@
       for (const e of i.ficha.mao) { const a = mao.get(e.etapa) || { etapa: e.etapa, custo: 0 }; a.custo += q * e.preco; mao.set(e.etapa, a); }
     }
     const lm = [...mat.values()];
-    return { pecas, semFicha, tecidos: lm.filter((m) => m.tecido).sort((a, b) => b.custo - a.custo), aviamentos: lm.filter((m) => !m.tecido), mao: [...mao.values()], grade: [...grade.values()] };
+    const TE = window.TECIDO_ESTAMPADO;
+    for (const m of lm) if (m.estampa) {
+      m.kgNec = m.qtd / TE.mPorKg;
+      m.rolos = Math.max(TE.minRolos, Math.ceil(m.kgNec / TE.kgRolo - 1e-9));
+      m.kgCompra = m.rolos * TE.kgRolo; m.mCompra = m.kgCompra * TE.mPorKg; m.sobra = m.mCompra - m.qtd;
+      m.custoPedido = m.kgCompra * TE.precoKg; m.minimo = Math.ceil(m.kgNec / TE.kgRolo - 1e-9) < TE.minRolos;
+    } else m.custoPedido = m.custo;
+    return { pecas, semFicha, tecidos: lm.filter((m) => m.tecido).sort((a, b) => (b.estampa - a.estampa) || b.custo - a.custo), aviamentos: lm.filter((m) => !m.tecido), mao: [...mao.values()], grade: [...grade.values()] };
   }
 
   function card(box, rot, val, sub) { const d = el('div', 'pm-kpi'); d.append(el('div', 'pm-kpi-label', rot), el('div', 'pm-kpi-value', val), el('div', 'pm-kpi-delta', sub || '')); box.appendChild(d); }
@@ -75,12 +82,13 @@
     document.querySelectorAll('#compra-seg-filtro button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === st.f)));
     document.getElementById('compra-janela').textContent = `Sugestão da aba Estoque com a venda até ${dataBR(base.ref)}: compra que chega em ${base.prazo} dias e cobre ${base.cobertura} dias depois da chegada.`;
     const T = totais(lista);
-    const custoMat = [...T.tecidos, ...T.aviamentos].reduce((a, m) => a + m.custo, 0), custoMao = T.mao.reduce((a, m) => a + m.custo, 0);
+    const custoMat = T.tecidos.reduce((a, m) => a + m.custoPedido, 0) + T.aviamentos.reduce((a, m) => a + m.custo, 0), custoMao = T.mao.reduce((a, m) => a + m.custo, 0);
     const box = document.getElementById('compra-cards'); box.replaceChildren();
     card(box, 'Peças que vamos comprar', int.format(T.pecas), T.semFicha ? int.format(T.semFicha) + ' sem ficha técnica' : 'todas com ficha técnica');
-    card(box, 'Tecido (metros)', dec(1).format(T.tecidos.reduce((a, m) => a + (m.unidade === 'm' ? m.qtd : 0), 0)), T.tecidos.length + ' tecidos e ribanas');
-    card(box, 'Custo dos tecidos', brl.format(T.tecidos.reduce((a, m) => a + m.custo, 0)), 'preço de referência');
-    card(box, 'Custo total estimado', brl.format(custoMat + custoMao), T.pecas - T.semFicha > 0 ? brl.format((custoMat + custoMao) / (T.pecas - T.semFicha)) + ' por peça (com ficha)' : '');
+    const est = T.tecidos.filter((m) => m.estampa);
+    card(box, 'Rolos de tecido estampado', int.format(est.reduce((a, m) => a + m.rolos, 0)), est.length ? int.format(est.reduce((a, m) => a + m.kgCompra, 0)) + ' kg em ' + est.length + ' estampas' : 'nenhuma estampa');
+    card(box, 'Pedido de tecidos', brl.format(T.tecidos.reduce((a, m) => a + m.custoPedido, 0)), 'rolos inteiros + ribanas e tule');
+    card(box, 'Custo total estimado', brl.format(custoMat + custoMao), T.pecas - T.semFicha > 0 ? brl.format((custoMat + custoMao) / (T.pecas - T.semFicha)) + ' por peça (com ficha, rolos inteiros)' : '');
     tabela(lista);
     ordem(T, custoMat, custoMao);
   }
@@ -131,11 +139,15 @@
   }
 
   function ordem(T, custoMat, custoMao) {
-    document.getElementById('compra-ordem-nota').textContent = T.pecas ? `Soma do consumo das ${int.format(T.pecas - T.semFicha)} peças com ficha técnica. O mesmo tecido usado em modelos diferentes aparece numa linha só.` : 'Preencha as quantidades acima para montar o pedido.';
+    document.getElementById('compra-ordem-nota').textContent = T.pecas ? `Soma do consumo das ${int.format(T.pecas - T.semFicha)} peças com ficha técnica. A mesma estampa usada em modelos diferentes aparece numa linha só e é arredondada para rolos inteiros.` : 'Preencha as quantidades acima para montar o pedido.';
     const un = (m) => m.unidade === 'm' ? dec(2).format(m.qtd) + ' m' : int.format(Math.ceil(m.qtd)) + ' ' + m.unidade;
-    const tec = T.tecidos.map((m) => [[m.insumo, 1], [[...m.modelos].join(', '), 1], [un(m), 0], [brl.format(m.preco), 0], [brl.format(m.custo), 0]]);
-    if (T.tecidos.length) { const l = [['Total de tecidos', 1], ['', 1], ['', 0], ['', 0], [brl.format(T.tecidos.reduce((a, m) => a + m.custo, 0)), 0]]; l.cls = 'pm-cab'; tec.push(l); }
-    linhaTab('compra-tecidos', [['Tecido / estampa', 1], ['Modelos', 1], ['Quantidade', 0], ['Preço', 0], ['Custo', 0]], tec.length ? tec : [[['—', 1], ['', 1], ['', 0], ['', 0], ['', 0]]]);
+    const TE = window.TECIDO_ESTAMPADO;
+    const tec = T.tecidos.map((m) => m.estampa
+      ? [[m.insumo.replace(/^Tecido /, 'Estampa '), 1], [m.codigo, 1], [[...m.modelos].join(', '), 1], [dec(1).format(m.qtd) + ' m', 0], [int.format(m.rolos) + (m.minimo ? ' (mín.)' : ''), 0], [int.format(m.kgCompra) + ' kg · ' + dec(1).format(m.mCompra) + ' m', 0], [dec(1).format(m.sobra) + ' m' + (m.modelos.size === 1 && m.porPeca ? ' (≈ ' + int.format(Math.floor(m.sobra / m.porPeca)) + ' peças)' : ''), 0], [brl.format(m.custoPedido), 0]]
+      : [[m.insumo, 1], ['a informar', 1], [[...m.modelos].join(', '), 1], [un(m), 0], ['—', 0], [un(m), 0], ['—', 0], [brl.format(m.custoPedido), 0]]);
+    if (T.tecidos.length) { const l = [['Total', 1], ['', 1], ['', 1], ['', 0], [int.format(T.tecidos.filter((m) => m.estampa).reduce((a, m) => a + m.rolos, 0)) + ' rolos', 0], ['', 0], ['', 0], [brl.format(T.tecidos.reduce((a, m) => a + m.custoPedido, 0)), 0]]; l.cls = 'pm-cab'; tec.push(l); }
+    linhaTab('compra-tecidos', [['Tecido', 1], ['Código', 1], ['Modelos', 1], ['Necessário', 0], ['Rolos', 0], ['Comprar', 0], ['Sobra', 0], ['Custo', 0]], tec.length ? tec : [[['—', 1], ['', 1], ['', 1], ['', 0], ['', 0], ['', 0], ['', 0], ['', 0]]]);
+    document.getElementById('compra-premissa').textContent = `Tecido estampado: ${TE.nome}, código ${TE.codigo}, fornecedor ${TE.fornecedor}, largura ${dec(2).format(TE.largura)} m, ${TE.gramatura} g/m². Comprado em rolos de ${TE.kgRolo} kg (1 kg = ${dec(2).format(TE.mPorKg)} m, um rolo ≈ ${dec(1).format(TE.kgRolo * TE.mPorKg)} m), mínimo de ${TE.minRolos} rolos por estampa, a ${brl.format(TE.precoKg)} o kg (${brl.format(TE.precoKg / TE.mPorKg)} o metro). Ribanas e tule saem em metros pelo preço da ficha.`;
     const tams = [...new Set(T.grade.flatMap((g) => [...g.tam.keys()]))].sort(cmpTam);
     const gr = T.grade.map((g) => [[g.ficha.sku + ' · ' + g.ficha.nome, 1], ...tams.map((t) => [g.tam.get(t) ? int.format(g.tam.get(t)) : '', 0]), [int.format(g.total), 0]]);
     linhaTab('compra-grade', [['Modelo', 1], ...tams.map((t) => [t, 0]), ['Total', 0]], gr.length ? gr : [[['—', 1]]]);
@@ -151,7 +163,14 @@
     const T = ordem.T; if (!T || !T.tecidos.length) return '';
     const hoje = new Date().toLocaleDateString('pt-BR');
     const l = [`PINTA ME - Pedido de tecidos - ${hoje}`, ''];
-    for (const m of T.tecidos) l.push(`${m.insumo}: ${m.unidade === 'm' ? dec(2).format(m.qtd) + ' m' : int.format(Math.ceil(m.qtd)) + ' ' + m.unidade} (modelos ${[...m.modelos].join(', ')})`);
+    const TE = window.TECIDO_ESTAMPADO;
+    const est = T.tecidos.filter((m) => m.estampa), out = T.tecidos.filter((m) => !m.estampa);
+    if (est.length) {
+      l.push(`${TE.fornecedor} - ${TE.nome} - código ${TE.codigo} (rolos de ${TE.kgRolo} kg)`);
+      for (const m of est) l.push(`- ${m.insumo.replace(/^Tecido /, 'Estampa ')}: ${m.rolos} rolos = ${int.format(m.kgCompra)} kg (aprox. ${dec(1).format(m.mCompra)} m)`);
+      l.push(`Total: ${est.reduce((a, m) => a + m.rolos, 0)} rolos = ${int.format(est.reduce((a, m) => a + m.kgCompra, 0))} kg`, '');
+    }
+    if (out.length) { l.push('Ribanas e tule:'); for (const m of out) l.push(`- ${m.insumo}: ${dec(2).format(m.qtd)} m`); }
     l.push('', 'Peças por modelo:');
     for (const g of T.grade) l.push(`${g.ficha.sku} ${g.ficha.nome}: ${[...g.tam.entries()].sort((a, b) => cmpTam(a[0], b[0])).map(([t, q]) => t + ': ' + q).join(', ')} (total ${g.total})`);
     return l.join('\n');
@@ -160,9 +179,10 @@
     const T = ordem.T; if (!T) return '';
     const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
     const n = (v, d) => String((+v).toFixed(d)).replace('.', ',');
-    const l = [['tipo', 'item', 'modelos', 'quantidade', 'unidade', 'preco', 'custo'].join(';')];
-    for (const m of [...T.tecidos, ...T.aviamentos]) l.push([m.tecido ? 'tecido' : 'aviamento', m.insumo, [...m.modelos].join(' '), n(m.qtd, m.unidade === 'm' ? 2 : 0), m.unidade, n(m.preco, 4), n(m.custo, 2)].map(q).join(';'));
-    for (const m of T.mao) l.push(['mao de obra', m.etapa, '', '', '', '', n(m.custo, 2)].map(q).join(';'));
+    const l = [['tipo', 'item', 'codigo', 'modelos', 'necessario', 'unidade', 'rolos', 'comprar_kg', 'comprar_m', 'sobra_m', 'preco', 'custo'].join(';')];
+    for (const m of T.tecidos) l.push([m.estampa ? 'tecido estampado' : 'tecido', m.insumo, m.codigo || '', [...m.modelos].join(' '), n(m.qtd, 2), m.unidade, m.estampa ? m.rolos : '', m.estampa ? n(m.kgCompra, 0) : '', m.estampa ? n(m.mCompra, 2) : n(m.qtd, 2), m.estampa ? n(m.sobra, 2) : '', m.estampa ? n(window.TECIDO_ESTAMPADO.precoKg, 2) + '/kg' : n(m.preco, 2) + '/m', n(m.custoPedido, 2)].map(q).join(';'));
+    for (const m of T.aviamentos) l.push(['aviamento', m.insumo, '', [...m.modelos].join(' '), n(m.qtd, 0), m.unidade, '', '', '', '', n(m.preco, 4), n(m.custo, 2)].map(q).join(';'));
+    for (const m of T.mao) l.push(['mao de obra', m.etapa, '', '', '', '', '', '', '', '', '', n(m.custo, 2)].map(q).join(';'));
     l.push('');
     l.push(['modelo', 'tamanho', 'pecas'].join(';'));
     for (const g of T.grade) for (const [t, v] of [...g.tam.entries()].sort((a, b) => cmpTam(a[0], b[0]))) l.push([g.ficha.sku, t, v].map(q).join(';'));
