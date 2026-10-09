@@ -276,7 +276,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <b>Devoluções</b>: valor de itens devolvidos ou cancelados após a venda.
     <b>Receita líquida</b>: vendas brutas menos descontos e devoluções, sem frete.
     <b>CMV</b>: custo por item cadastrado em cada variante no Shopify. <b>Margem bruta</b>: receita líquida menos CMV, como o Shopify calcula. <b>Margem %</b>: margem bruta ÷ receita líquida.
-    Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é o tipo de produto do cadastro do Shopify. <b>Estampa</b> é lida do nome do produto (Voa Passarinho, Viagem Colorida, Dia de Brincar, Pets, Alfabeto da PINTA com Caça-Palavras, Copa do Mundo com Futebol, Um Mergulho na Ilha, Frutaria, Natal, Tangram). <b>Tamanho</b> é lido do nome da variante (ex.: “04 / 06 (GRÁTIS)” → 04; “M (25-28)” → M). Itens sem tamanho aparecem como “Único”.
+    Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é lida do começo do nome do produto (Camiseta, Vestido, Cropped, Blusa…); só quando o nome não indica vale o tipo de produto do cadastro do Shopify. <b>Estampa</b> é lida do nome do produto (Voa Passarinho, Viagem Colorida, Dia de Brincar, Pets, Alfabeto da PINTA com Caça-Palavras, Copa do Mundo com Futebol, Um Mergulho na Ilha, Frutaria, Natal, Tangram). <b>Tamanho</b> é lido do nome da variante (ex.: “04 / 06 (GRÁTIS)” → 04; “M (25-28)” → M). Itens sem tamanho aparecem como “Único”.
     Antes de abril de 2025 muitos produtos ainda não tinham custo cadastrado, então a margem desses meses fica distorcida. Só vendas da loja Shopify. Datas no fuso da loja (Brasília). O sell-through de um ano usa o estoque do início do primeiro mês e do fim do último mês.
   </p>
 </div>
@@ -440,6 +440,12 @@ dash.calc('linhas', {
       for (const [k, v] of regras) if (x.includes(k)) return v;
       return 'Sem estampa';
     };
+    const categoriaDe = (titulo, tipo) => {
+      const t = String(titulo || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const regras = [[/^camiseta adulto/, 'Camiseta Adulto'], [/^camiseta/, 'Camiseta Infantil'], [/^vestido/, 'Vestido Infantil'], [/^cropped/, 'Cropped Infantil'], [/^blusa/, 'Blusa Infantil'], [/^cal[cç]a/, 'Calça Infantil'], [/^bermuda/, 'Bermuda Infantil'], [/^short/, 'Short Saia Infantil'], [/^moletom/, 'Moletom Infantil'], [/^t[eê]nis/, 'Tênis'], [/^estojo/, 'Estojo'], [/mochila|lancheira/, 'Mochila e Lancheira'], [/^meia/, 'Meia'], [/boneca|boneco|de pano/, 'Boneca de Pano'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem'], [/bandeirola/, 'Decoração'], [/^livro/, 'Livro'], [/kit conjunto escolar/, 'Kit Escolar'], [/lista vip|^kit /, 'Kit'], [/scrunchie|copo/, 'Acessório'], [/teste/, 'Teste']];
+      for (const [re, c] of regras) if (re.test(t)) return c;
+      return tipo ? String(tipo).trim() : 'Sem categoria';
+    };
     const dims = ['produto', 'estampa', 'categoria', 'tamanho', 'estampa_tamanho', 'categoria_tamanho', 'produto_tamanho'];
     const acc = new Map();
     const total = { id: 'total', dim: 'total', estampa: '', categoria: '', produto: '', tamanho: '', pecas: 0, gmv: 0, devolucoes: 0, receita: 0, cmv: 0, margem: 0, frete: 0, receita_sem_custo: 0 };
@@ -449,7 +455,7 @@ dash.calc('linhas', {
       const valor = (r.gross_sales || 0) + (r.discounts || 0);
       if (!temProduto && !valor && !r.net_items_sold && !r.net_sales && !r.sales_reversals) continue;
       const produto = temProduto ? String(r.product_title).replace(/\s+/g, ' ').trim() : '(sem produto)';
-      const categoria = r.product_type ? String(r.product_type).trim() : 'Sem categoria';
+      const categoria = categoriaDe(r.product_title, r.product_type);
       const tam = temProduto ? tamanho(r.product_variant_title) : '—';
       const est = temProduto ? estampa(r.product_title) : '—';
       const semCusto = r.cost_of_goods_sold == null;
@@ -551,6 +557,12 @@ dash.calc('giro', {
       }
       return 'Único';
     };
+    const categoriaDe = (titulo, tipo) => {
+      const t = String(titulo || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const regras = [[/^camiseta adulto/, 'Camiseta Adulto'], [/^camiseta/, 'Camiseta Infantil'], [/^vestido/, 'Vestido Infantil'], [/^cropped/, 'Cropped Infantil'], [/^blusa/, 'Blusa Infantil'], [/^cal[cç]a/, 'Calça Infantil'], [/^bermuda/, 'Bermuda Infantil'], [/^short/, 'Short Saia Infantil'], [/^moletom/, 'Moletom Infantil'], [/^t[eê]nis/, 'Tênis'], [/^estojo/, 'Estojo'], [/mochila|lancheira/, 'Mochila e Lancheira'], [/^meia/, 'Meia'], [/boneca|boneco|de pano/, 'Boneca de Pano'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem'], [/bandeirola/, 'Decoração'], [/^livro/, 'Livro'], [/kit conjunto escolar/, 'Kit Escolar'], [/lista vip|^kit /, 'Kit'], [/scrunchie|copo/, 'Acessório'], [/teste/, 'Teste']];
+      for (const [re, c] of regras) if (re.test(t)) return c;
+      return tipo ? String(tipo).trim() : 'Sem categoria';
+    };
     const dims = ['produto', 'estampa', 'categoria', 'tamanho', 'estampa_tamanho', 'categoria_tamanho', 'produto_tamanho'];
     const acc = new Map();
     // Variantes que só mudam a quantidade de canetinhas (6 ou 12) usam a mesma peça física:
@@ -559,7 +571,7 @@ dash.calc('giro', {
     const pecas = new Map();
     for (const r of estoque) {
       if (!r.product_title) continue;
-      const k = r.product_type + '\u0001' + r.product_title + '\u0001' + fisico(r.product_variant_title);
+      const k = String(r.product_title).replace(/\s+/g, ' ').trim() + '\u0001' + fisico(r.product_variant_title);
       let a = pecas.get(k);
       if (!a) { a = { product_type: r.product_type, product_title: r.product_title, product_variant_title: fisico(r.product_variant_title), starting_inventory_units: 0, ending_inventory_units: 0, inventory_units_sold: 0 }; pecas.set(k, a); }
       a.starting_inventory_units = Math.max(a.starting_inventory_units, r.starting_inventory_units || 0);
@@ -569,7 +581,7 @@ dash.calc('giro', {
     for (const r of pecas.values()) {
       if (!r.product_title) continue;
       const produto = String(r.product_title).replace(/\s+/g, ' ').trim();
-      const cat = r.product_type ? String(r.product_type).trim() : 'Sem categoria';
+      const cat = categoriaDe(r.product_title, r.product_type);
       const est = estampa(produto), tam = tamanho(r.product_variant_title);
       for (const d of dims) {
         const e = d.includes('estampa') ? est : '', c = d.includes('categoria') ? cat : '', p = d.includes('produto') ? produto : '', t = d.includes('tamanho') ? tam : '';

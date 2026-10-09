@@ -42,6 +42,12 @@
     return 'Sem estampa';
   };
   const nomeLimpo = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const categoriaDe = (titulo, tipo) => {
+    const t = String(titulo || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const regras = [[/^camiseta adulto/, 'Camiseta Adulto'], [/^camiseta/, 'Camiseta Infantil'], [/^vestido/, 'Vestido Infantil'], [/^cropped/, 'Cropped Infantil'], [/^blusa/, 'Blusa Infantil'], [/^cal[cç]a/, 'Calça Infantil'], [/^bermuda/, 'Bermuda Infantil'], [/^short/, 'Short Saia Infantil'], [/^moletom/, 'Moletom Infantil'], [/^t[eê]nis/, 'Tênis'], [/^estojo/, 'Estojo'], [/mochila|lancheira/, 'Mochila e Lancheira'], [/^meia/, 'Meia'], [/boneca|boneco|de pano/, 'Boneca de Pano'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem'], [/bandeirola/, 'Decoração'], [/^livro/, 'Livro'], [/kit conjunto escolar/, 'Kit Escolar'], [/lista vip|^kit /, 'Kit'], [/scrunchie|copo/, 'Acessório'], [/teste/, 'Teste']];
+    for (const [re, c] of regras) if (re.test(t)) return c;
+    return tipo ? String(tipo).trim() : 'Sem categoria';
+  };
 
   const REGRAS = { mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]], variacaoFixa: { '2026-11': -0.40, '2026-12': -0.35 } };
 
@@ -139,8 +145,8 @@
     const acc = new Map();
     const pega = (r) => {
       const k = chave(r); let a = acc.get(k);
-      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: (r.product_type || '').trim() || 'Sem categoria', vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0 }; acc.set(k, a); }
-      if (!a.categoria || a.categoria === 'Sem categoria') a.categoria = (r.product_type || '').trim() || a.categoria;
+      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: categoriaDe(r.product_title, r.product_type), vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0 }; acc.set(k, a); }
+      if (a.categoria === 'Sem categoria' && r.product_type) a.categoria = categoriaDe(r.product_title, r.product_type);
       return a;
     };
     const ini12 = addMes(mesRef, -12);

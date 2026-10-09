@@ -14,7 +14,7 @@ rep("if (p === 'a:' + anoAtual) return 'Ano de ' + anoAtual + ', de 1º de janei
 rep("No mês até agora:", "No mês até ontem:")
 s = s.replace("(até hoje)", "(até ontem)").replace(" (até hoje, vs. mesmos dias)", " (até ontem, vs. mesmos dias)")
 rep('<h1 class="pm-title">Vendas por produto e tamanho</h1>', '<h1 class="pm-title">Vendas Pinta Me</h1>\n    <p class="pm-window" id="atualizacao"></p>')
-rep("<b>Categoria</b> é o tipo de produto", "Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é o tipo de produto")
+rep("<b>Categoria</b> é lida", "Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é lida")
 rep("Datas no fuso da loja (Brasília).", "Datas no fuso da loja (Brasília). O sell-through de um ano usa o estoque do início do primeiro mês e do fim do último mês.")
 rep('<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>', '<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>\n    <button type="button" role="tab" data-aba="estoque" id="tab-estoque">Estoque</button>')
 assert s.count("['mes', 'produtos', 'estados']") == 2; s = s.replace("['mes', 'produtos', 'estados']", "['mes', 'produtos', 'estados', 'estoque']")
