@@ -134,8 +134,8 @@ async function main() {
   if (/<\/script/i.test(d3)) throw new Error('d3 contém </script>');
   if (!tpl.includes('/*DADOS*/null')) throw new Error('Marcador de dados não encontrado no modelo');
   const prev = await readFile(path.join(root, 'src', 'previsao.js'), 'utf8');
-  const estJs = await readFile(path.join(root, 'src', 'estoque.js'), 'utf8');
-  const abaEst = await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8');
+  const estJs = [await readFile(path.join(root, 'src', 'fichas.js'), 'utf8'), await readFile(path.join(root, 'src', 'estoque.js'), 'utf8'), await readFile(path.join(root, 'src', 'compra.js'), 'utf8')].join('\n');
+  const abaEst = (await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_compra.html'), 'utf8'));
   for (const [n, t] of [['previsao.js', prev], ['estoque.js', estJs]]) if (/<\/script/i.test(t)) throw new Error(n + ' contém </script>');
   for (const m of ['/*PREVISAO*/', '/*ESTOQUE*/', '<!--ABA_ESTOQUE-->']) if (!tpl.includes(m)) throw new Error('Marcador ' + m + ' não encontrado no modelo');
   const json = JSON.stringify(dados).replace(/</g, '\\u003c');

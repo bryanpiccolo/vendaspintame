@@ -1,6 +1,6 @@
 # Painel de vendas Pinta Me
 
-Painel com a venda **fechada até o dia anterior**, atualizado todo dia às 7h (horário de Brasília) e protegido por senha. Tem quatro abas: vendas mês a mês, vendas por produto (com sell-through), vendas por estado e estoque (previsão de vendas, risco de ruptura e compra sugerida).
+Painel com a venda **fechada até o dia anterior**, atualizado todo dia às 7h (horário de Brasília) e protegido por senha. Tem quatro abas: vendas mês a mês, vendas por produto (com sell-through), vendas por estado estoque (previsão de vendas, risco de ruptura e compra sugerida) e compra (quantidades escolhidas e consumo de tecido pelas fichas técnicas em `src/fichas.js`).
 
 ## Como funciona
 

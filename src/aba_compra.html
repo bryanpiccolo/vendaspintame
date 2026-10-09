@@ -1,0 +1,76 @@
+<style>
+.pm-qtd { width: 4.8rem; text-align: right; font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: 6px; padding: 2px 6px; }
+.pm-qtd.pm-on { border-color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.pm-btn { font: inherit; font-size: var(--cds-font-size-caption); background: var(--color-panel); color: var(--color-fg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); cursor: pointer; }
+.pm-btn:hover { border-color: var(--color-fg-muted); }
+.pm-btn-pri { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+.pm-cab td { background: color-mix(in srgb, var(--color-fg) 5%, transparent); font-weight: var(--cds-font-weight-medium); }
+.pm-ok-msg { font-size: var(--cds-font-size-caption); color: var(--color-ok); min-height: 1.2em; }
+.pm-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-lg); }
+@media print {
+  body * { visibility: hidden !important; }
+  #compra-ordem, #compra-ordem * { visibility: visible !important; }
+  #compra-ordem { position: absolute; left: 0; top: 0; width: 100%; border: 0; }
+  #compra-ordem .pm-tools { display: none; }
+}
+</style>
+  <div class="pm-tab" id="aba-compra" role="tabpanel" hidden>
+  <p class="pm-window" id="compra-janela"></p>
+
+  <section class="pm-cards" id="compra-cards"></section>
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2>O que vamos comprar</h2>
+        <p class="pm-note" id="compra-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <div class="pm-seg" id="compra-seg-filtro" aria-label="Mostrar">
+        <button type="button" data-f="ficha">Com ficha técnica</button>
+        <button type="button" data-f="sugestao">Com compra sugerida</button>
+        <button type="button" data-f="escolhidos">Só o que vamos comprar</button>
+      </div>
+      <button type="button" class="pm-btn" id="compra-preencher">Preencher com a sugestão</button>
+      <button type="button" class="pm-btn" id="compra-limpar">Limpar tudo</button>
+      <input class="pm-search" id="compra-busca" type="search" placeholder="Buscar produto ou tamanho" aria-label="Buscar produto">
+    </div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="compra-tabela"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <p class="pm-note">As quantidades ficam guardadas neste navegador. Quem abrir o painel em outro computador começa com a lista vazia.</p>
+  </section>
+
+  <section class="pm-card" id="compra-ordem">
+    <div class="pm-card-head">
+      <div>
+        <h2>Ordem de compra de tecidos</h2>
+        <p class="pm-note" id="compra-ordem-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <button type="button" class="pm-btn pm-btn-pri" id="compra-copiar">Copiar pedido de tecidos</button>
+      <button type="button" class="pm-btn" id="compra-csv">Baixar planilha (CSV)</button>
+      <button type="button" class="pm-btn" id="compra-imprimir">Imprimir</button>
+      <span class="pm-ok-msg" id="compra-msg" role="status"></span>
+    </div>
+    <div class="pm-tablebox" style="max-height:none">
+      <table class="pm-table" id="compra-tecidos"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="pm-grid2" style="margin-top: var(--cds-gap-lg)">
+      <div>
+        <h2 style="font-size: var(--cds-font-size-body); margin: 0 0 var(--cds-gap-sm)">Peças por modelo e tamanho</h2>
+        <div class="pm-tablebox" style="max-height:none"><table class="pm-table" id="compra-grade"><thead><tr></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div>
+        <h2 style="font-size: var(--cds-font-size-body); margin: 0 0 var(--cds-gap-sm)">Aviamentos e mão de obra</h2>
+        <div class="pm-tablebox" style="max-height:none"><table class="pm-table" id="compra-aviamentos"><thead><tr></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="pm-foot">
+    <b>Fichas técnicas</b> de 09/10/2026: consumo por peça igual em todos os tamanhos; o consumo de tecido das fichas já inclui 10% de perda (na Camiseta Voa Passarinho, consumo informado pela equipe). Preços são referências históricas: confira antes de fechar o pedido. Não desconta tecido em estoque e não arredonda para rolo ou pacote. Produtos sem ficha aparecem na lista, mas não entram na conta de tecido.
+  </p>
+  </div>

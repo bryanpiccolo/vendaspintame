@@ -16,8 +16,8 @@ s = s.replace("(até hoje)", "(até ontem)").replace(" (até hoje, vs. mesmos di
 rep('<h1 class="pm-title">Vendas por produto e tamanho</h1>', '<h1 class="pm-title">Vendas Pinta Me</h1>\n    <p class="pm-window" id="atualizacao"></p>')
 rep("<b>Categoria</b> é lida", "Os números são da venda fechada até o dia anterior e são atualizados todo dia por volta das 7h. <b>Categoria</b> é lida")
 rep("Datas no fuso da loja (Brasília).", "Datas no fuso da loja (Brasília). O sell-through de um ano usa o estoque do início do primeiro mês e do fim do último mês.")
-rep('<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>', '<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>\n    <button type="button" role="tab" data-aba="estoque" id="tab-estoque">Estoque</button>')
-assert s.count("['mes', 'produtos', 'estados']") == 2; s = s.replace("['mes', 'produtos', 'estados']", "['mes', 'produtos', 'estados', 'estoque']")
+rep('<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>', '<button type="button" role="tab" data-aba="estados" id="tab-estados">Vendas por estado</button>\n    <button type="button" role="tab" data-aba="estoque" id="tab-estoque">Estoque</button>\n    <button type="button" role="tab" data-aba="compra" id="tab-compra">Compra</button>')
+assert s.count("['mes', 'produtos', 'estados']") == 2; s = s.replace("['mes', 'produtos', 'estados']", "['mes', 'produtos', 'estados', 'estoque', 'compra']")
 rep('  <p class="pm-foot" id="notas">', '<!--ABA_ESTOQUE-->\n\n  <p class="pm-foot" id="notas">')
 tokens = open(sys.argv[3]).read()
 i = s.index('</style>'); s = s[:i] + tokens + s[i:]

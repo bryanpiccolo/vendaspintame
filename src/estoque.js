@@ -276,10 +276,15 @@
 
   function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawTabela(); }
   window.drawEstoque = desenha;
-  window.EstoqueAba = { define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); }, carregado: () => !!DADOS };
+  window.EstoqueAba = {
+    define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); if (window.CompraAba) window.CompraAba.desenha(); },
+    carregado: () => !!DADOS,
+    // para a aba Compra: peças fora da lista de exclusão, com a situação de cada uma
+    resultado() { if (!DADOS) return null; if (!R) calcula(); return { R, itens: R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })), prazo: st.prazo, cobertura: st.cobertura, ref }; },
+  };
 
   document.getElementById('est-prazo').value = st.prazo; document.getElementById('est-cobertura').value = st.cobertura;
-  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo2', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); } };
+  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo2', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); if (window.CompraAba) window.CompraAba.marcarVelho(); } };
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
   document.getElementById('est-seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; drawMensal(); } });
   document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao2', st.v); st.abertos.clear(); drawTabela(); } });
