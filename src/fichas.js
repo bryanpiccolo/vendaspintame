@@ -23,6 +23,7 @@
     { nome: 'Voa Passarinho', codigo: '204163-1R', chave: /passarinho/i },
     { nome: 'Alfabeto da PINTA', codigo: '207021-1R', chave: /alfabeto/i },
     { nome: 'Tangram', codigo: '211932-1R', chave: /tangram/i },
+    { nome: 'Coragem', codigo: '212405-1R', chave: /coragem/i },
   ];
   const f = (sku, nome, produto, materiais, mao) => ({
     sku, nome, produto,
