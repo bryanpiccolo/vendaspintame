@@ -26,7 +26,7 @@
     ['Casacos, blusões e moletons', /casaco|blus[aã]o|moletom|jaqueta/i],
   ];
   const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
-  const st = { m: 'pecas', v: guarda.le('visao', 'produto_tamanho'), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo', 45), cobertura: +guarda.le('cobertura', 60) };
+  const st = { m: 'pecas', v: guarda.le('visao2', 'produto'), abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo', 45), cobertura: +guarda.le('cobertura', 60) };
   let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
 
@@ -146,11 +146,11 @@
   const ordTam = (t) => { if (/^\d+$/.test(t)) return [0, +t]; const Lt = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG']; const i = Lt.indexOf(t); return i >= 0 ? [1, i] : [2, 0]; };
   const cmpTam = (a, b) => { const A = ordTam(a.tamanho), B = ordTam(b.tamanho); return A[0] - B[0] || A[1] - B[1] || String(a.tamanho).localeCompare(String(b.tamanho)); };
 
-  function linhas() {
-    const v = st.v, dims = v.split('_');
+  function linhas(v = st.v, generico = false) {
+    const dims = v.split('_');
     const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes);
     const its = R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
-    if (v === 'produto_tamanho') return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
+    if (v === 'produto_tamanho' && !generico) return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
     const acc = new Map();
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
@@ -219,12 +219,26 @@
     }
     const body = [];
     const LIM = 400;
+    const abre = !v.includes('tamanho');
+    const filhos = abre ? linhas(v + '_tamanho', true) : [];
+    const lista = [];
     for (const r of rows.slice(0, LIM)) {
+      lista.push(r);
+      if (abre && st.abertos.has(r.id)) filhos.filter((f) => f.id.startsWith(r.id + '\u0001')).sort(cmpTam).forEach((f) => lista.push({ ...f, filho: true }));
+    }
+    for (const r of lista) {
       const tr = el('tr');
+      if (abre && !r.filho) { tr.className = 'pm-abre'; tr.title = 'Clique para ver os tamanhos'; tr.addEventListener('click', () => { if (st.abertos.has(r.id)) st.abertos.delete(r.id); else st.abertos.add(r.id); drawTabela(); }); }
+      if (r.filho) tr.className = 'pm-filho';
+      let primeiro = true;
       for (const c of cols) {
         let td;
-        if (c.txt) { td = el('td', 'pm-txt' + (c.size ? ' pm-size' : ''), r[c.f]); }
-        else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
+        if (c.txt) {
+          if (r.filho) { td = el('td', 'pm-txt', primeiro ? 'Tamanho ' + r.tamanho : ''); }
+          else { td = el('td', 'pm-txt' + (c.size ? ' pm-size' : '')); if (abre && primeiro) td.appendChild(el('span', 'pm-seta', st.abertos.has(r.id) ? '▾ ' : '▸ ')); td.appendChild(document.createTextNode(r[c.f])); }
+          primeiro = false;
+        }
+        else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1 && !r.filho) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
         else if (c.st2) { td = el('td', '', r.sell_through == null ? '—' : pct.format(r.sell_through).replace('+', '')); if (r.fator && r.fator > 1) td.appendChild(el('small', 'pm-sub', 'compra ×' + String(r.fator).replace('.', ','))); }
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); }
         else { td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)'; }
@@ -238,7 +252,7 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Compra sugerida para cobrir a venda prevista de amanhã até ${st.prazo + st.cobertura} dias (${st.prazo} de reposição + ${st.cobertura} de cobertura), descontado o estoque de hoje. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
@@ -255,7 +269,7 @@
   const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); } };
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
   document.getElementById('est-seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; drawMensal(); } });
-  document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao', st.v); drawTabela(); } });
+  document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao2', st.v); st.abertos.clear(); drawTabela(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));

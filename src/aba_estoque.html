@@ -4,6 +4,11 @@
 .pm-chip { display: inline-block; font-size: 0.72rem; border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45rem; white-space: nowrap; }
 .pm-regras { margin: 0 0 var(--cds-gap-md); padding-left: 1.1rem; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.55; }
 .pm-regras li { margin-bottom: 0.3rem; }
+.pm-abre { cursor: pointer; }
+.pm-abre:hover td { background: color-mix(in srgb, var(--color-fg) 4%, transparent); }
+.pm-seta { color: var(--color-fg-muted); display: inline-block; width: 1em; }
+.pm-filho td { background: color-mix(in srgb, var(--color-fg) 3%, transparent); font-size: 0.95em; }
+.pm-filho td:first-child { padding-left: 1.6rem; color: var(--color-fg-muted); }
 .pm-sub { display: block; font-size: 0.68rem; color: var(--color-fg-muted); }
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
@@ -45,8 +50,8 @@
     </div>
     <div class="pm-tools">
       <div class="pm-seg" id="est-seg-visao" aria-label="Agrupar por">
-        <button type="button" data-v="produto_tamanho">Produto × tamanho</button>
         <button type="button" data-v="produto">Produto</button>
+        <button type="button" data-v="produto_tamanho">Produto × tamanho</button>
         <button type="button" data-v="estampa_tamanho">Estampa × tamanho</button>
         <button type="button" data-v="categoria_tamanho">Categoria × tamanho</button>
         <button type="button" data-v="estampa">Estampa</button>
