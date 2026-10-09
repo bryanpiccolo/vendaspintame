@@ -1,12 +1,14 @@
 // Previsão de vendas e de ruptura de estoque (só vendas do site/Shopify).
 //
 // Regras (as mesmas mostradas na aba Estoque, em "Premissas"):
-// 1. Queda contra o ano passado: a dos 2 últimos meses fechados somados. A previsão diminui essa queda
-//    em partes iguais a cada mês, até zerar (vender igual ao ano passado) no próximo janeiro.
+// 1. Queda contra o ano passado: a dos 2 últimos meses fechados somados. Meses com variação definida
+//    (REGRAS.variacaoFixa) usam essa variação; os demais ficam no meio do caminho, em linha reta, até zerar
+//    (vender igual ao ano passado) no próximo janeiro.
 //    Mês futuro até dezembro = mesmo mês do ano passado × (1 + variação do mês).
 // 2. Janeiro = previsão de dezembro × média da relação janeiro/dezembro dos 2 últimos viradas de ano,
 //    nunca abaixo do janeiro do ano passado.
-// 3. Depois de janeiro: segue o perfil de vendas mês a mês do último ano completo (2025).
+// 3. Depois de janeiro: cada mês = mês anterior × média de quanto esse mês vendeu sobre o anterior
+//    nos 2 últimos anos com dados (2025 e 2026).
 // 4. Mês corrente: curva diária do mesmo mês do ano passado (datas como Dia das Crianças e Black Friday).
 //    O fechamento junta o ritmo do mês (vendido até ontem ÷ parte que costuma estar vendida) com a regra 1,
 //    dando mais peso ao ritmo conforme o mês avança. Os dias seguintes seguem a mesma curva.
@@ -40,7 +42,7 @@
   };
   const nomeLimpo = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
-  const REGRAS = { mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]] };
+  const REGRAS = { mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]], variacaoFixa: { '2026-11': -0.40, '2026-12': -0.35 } };
 
   function loja(D, metrica) {
     const val = (r) => metrica === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0);
@@ -57,21 +59,42 @@
     // próximo janeiro depois do último mês fechado
     let jan = addMes(ultFechado, 1); while (jan.slice(5) !== '01') jan = addMes(jan, 1);
     let passos = 0; for (let m = ultFechado; m < jan; m = addMes(m, 1)) passos++;
-    const variacao = (m) => { let i = 0; for (let k = ultFechado; k < m; k = addMes(k, 1)) i++; return varBase < 0 ? varBase * (1 - i / passos) : varBase; };
+    // pontos fixos: último mês fechado (queda de base), meses com variação definida e janeiro (zero)
+    const idx = (m) => { let i = 0; for (let k = ultFechado; k < m; k = addMes(k, 1)) i++; return i; };
+    const pontos = [[0, varBase]];
+    for (const [m, v] of Object.entries(REGRAS.variacaoFixa)) if (m > ultFechado && m < jan) pontos.push([idx(m), v]);
+    pontos.push([passos, varBase < 0 ? 0 : varBase]);
+    pontos.sort((a, b) => a[0] - b[0]);
+    const variacao = (m) => {
+      const i = idx(m);
+      for (let k = 1; k < pontos.length; k++) {
+        const [i0, v0] = pontos[k - 1], [i1, v1] = pontos[k];
+        if (i <= i1) return i1 === i0 ? v1 : v0 + (v1 - v0) * (i - i0) / (i1 - i0);
+      }
+      return pontos[pontos.length - 1][1];
+    };
+    const fixos = Object.entries(REGRAS.variacaoFixa).filter(([m]) => m > ultFechado && m < jan);
     // 2. relação janeiro/dezembro das 2 últimas viradas de ano com dados
     const viradas = [];
     for (let y = +jan.slice(0, 4) - 1; y >= 2020 && viradas.length < 2; y--) { const j = y + '-01', d = (y - 1) + '-12'; if (x(j) > 0 && x(d) > 0) viradas.push({ jan: j, dez: d, r: x(j) / x(d) }); }
     const relJan = viradas.length ? viradas.reduce((a, v) => a + v.r, 0) / viradas.length : 1;
-    // 3. perfil do último ano completo
-    let anoPerfil = +jan.slice(0, 4) - 1; while (anoPerfil > 2020 && !(x(anoPerfil + '-01') > 0 && x(anoPerfil + '-12') > 0)) anoPerfil--;
-    const perfil = (m) => x(anoPerfil + '-' + m.slice(5));
+    // 3. depois de janeiro: relação de cada mês com o anterior nos 2 últimos anos com os dois meses fechados
+    const relMes = (m) => {
+      const rs = [];
+      for (let y = +m.slice(0, 4) - 1; y >= 2020 && rs.length < 2; y--) {
+        const a = y + '-' + m.slice(5), b = addMes(a, -1);
+        if (a <= ultFechado && x(a) > 0 && x(b) > 0) rs.push({ ano: y, r: x(a) / x(b) });
+      }
+      return rs;
+    };
+    const relacoes = new Map();
     const prev = new Map(), variacoes = new Map();
     const horizonteFim = addMes(mesRef, 6);
     for (let m = addMes(ultFechado, 1); m <= horizonteFim; m = addMes(m, 1)) {
       let v;
       if (m < jan) { const vr = variacao(m); v = x(addMes(m, -12)) * (1 + vr); }
       else if (m === jan) { v = Math.max(prev.get(addMes(jan, -1)) * relJan, x(addMes(jan, -12))); }
-      else { const pj = perfil(jan); v = pj > 0 ? prev.get(jan) * perfil(m) / pj : prev.get(addMes(m, -1)); }
+      else { const rs = relMes(m); relacoes.set(m, rs); const f = rs.length ? rs.reduce((a, b) => a + b.r, 0) / rs.length : 1; v = prev.get(addMes(m, -1)) * f; }
       prev.set(m, v);
       const ly = x(addMes(m, -12)); variacoes.set(m, ly > 0 ? v / ly - 1 : null);
     }
@@ -102,7 +125,7 @@
     for (let i = 1; i <= 6; i++) { const m = addMes(mesRef, i); futuros.push({ mes: m, valor: prev.get(m), variacao: variacoes.get(m), pesos: pesosDia(m) }); }
     return {
       mtd, parcela: c, ritmo, sazonal, fechamento, restante, diasRestantes, futuros, mesRef, ultFechado,
-      base, varBase, variacaoMesAtual: variacao(mesRef), jan, viradas, relJan, anoPerfil, variacoes,
+      base, varBase, variacaoMesAtual: variacao(mesRef), jan, viradas, relJan, relacoes, fixos, variacoes,
       historico: meses.map((m) => ({ mes: m, valor: x(m) })),
     };
   }
