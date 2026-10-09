@@ -1,4 +1,4 @@
-// Aba "Estoque": previsão de vendas, ruptura e compra sugerida. Usa DADOS (do modelo) e Previsao (src/previsao.js).
+// Aba "Estoque": previsão de vendas, ruptura e compra sugerida. Recebe os dados por EstoqueAba.define(D) e usa Previsao (src/previsao.js).
 (function () {
   const P = window.Previsao;
   const int = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
@@ -13,8 +13,7 @@
   const guarda = { le(k, d) { try { const v = localStorage.getItem('pm-est-' + k); return v == null ? d : v; } catch (e) { return d; } }, grava(k, v) { try { localStorage.setItem('pm-est-' + k, v); } catch (e) { /* sem armazenamento */ } } };
 
   const st = { m: 'pecas', v: guarda.le('visao', 'produto_tamanho'), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo', 45), cobertura: +guarda.le('cobertura', 60) };
-  let R = null;
-  const ref = DADOS.referencia, mesRef = ref.slice(0, 7);
+  let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
 
   const pressed = (sel, attr, v) => document.querySelectorAll(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === v)));
@@ -77,7 +76,7 @@
     const fut = new Map(L.futuros.map((f) => [f.mes, f.valor]));
     const data = meses.map((k) => ({ k, real: k < mesRef ? (s.get(k) || 0) : k === mesRef ? L.mtd : 0, prev: k === mesRef ? L.restante : (fut.get(k) || 0), ly: s.get(P.addMes(k, -12)) }));
     const box = document.getElementById('est-grafico-mensal'); box.replaceChildren();
-    const cor = 'var(--serie-1)';
+    const cor = (window.dash && dash.colors && dash.colors[0]) || 'var(--serie-1)';
     legenda('est-legenda-mensal', [[cor, 'Realizado'], [cor, 'Previsto', 0.35], ['var(--cds-chart-axis)', 'Mesmo mês do ano anterior']]);
     const W = Math.max(300, box.clientWidth), H = 260, mt = 14, mb = 26;
     const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vendas realizadas e previstas por mês');
@@ -114,7 +113,7 @@
     document.getElementById('est-diario-titulo').textContent = cap(nomeMes(mesRef, { year: undefined })) + ' dia a dia (peças)';
     document.getElementById('est-diario-nota').textContent = `Até ontem (${dataCurta(ref)}) foram ${int.format(L.mtd)} peças. Pela curva dos últimos 12 meses, até este dia costuma estar vendido ${pct.format(L.parcela).replace('+', '')} do mês; no ritmo atual o mês fecharia em ${int.format(L.ritmo)} peças e pela sazonalidade em ${int.format(L.sazonal)}. A previsão usada é ${int.format(L.fechamento)} peças, com ${int.format(L.restante)} nos próximos ${nd - +ref.slice(8)} dias.`;
     const box = document.getElementById('est-grafico-diario'); box.replaceChildren();
-    const cor = 'var(--serie-1)';
+    const cor = (window.dash && dash.colors && dash.colors[0]) || 'var(--serie-1)';
     legenda('est-legenda-diario', [[cor, 'Realizado'], [cor, 'Previsto', 0.35], ['var(--color-fg-muted)', 'Mesmo dia do ano anterior']]);
     const W = Math.max(300, box.clientWidth), H = 220, mt = 10, mb = 24;
     const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vendas do mês por dia, realizadas e previstas');
@@ -237,17 +236,17 @@
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
   }
 
-  function desenha() { if (document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawMensal(); drawDiario(); drawTabela(); }
+  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawMensal(); drawDiario(); drawTabela(); }
   window.drawEstoque = desenha;
+  window.EstoqueAba = { define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); }, carregado: () => !!DADOS };
 
   document.getElementById('est-prazo').value = st.prazo; document.getElementById('est-cobertura').value = st.cobertura;
-  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo', st.prazo); guarda.grava('cobertura', st.cobertura); calcula(); desenha(); };
+  const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); } };
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
   document.getElementById('est-seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; drawMensal(); } });
   document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao', st.v); drawTabela(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));
-  let larg = 0; window.addEventListener('resize', () => { const w = document.getElementById('aba-estoque').clientWidth; if (R && w && Math.abs(w - larg) > 40) { larg = w; drawMensal(); drawDiario(); } });
-  desenha();
+  let larg = 0; window.addEventListener('resize', () => { const w = document.getElementById('aba-estoque').clientWidth; if (DADOS && R && w && Math.abs(w - larg) > 40) { larg = w; drawMensal(); drawDiario(); } });
 })();
