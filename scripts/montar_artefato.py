@@ -10,7 +10,7 @@ rep("['mes', 'produtos', 'estados']", "['mes', 'produtos', 'estados', 'estoque',
 aba = open(repo + '/src/aba_estoque.html').read() + open(repo + '/src/aba_compra.html').read()
 fontes = '<span hidden data-source="diario"></span><span hidden data-source="pecas_meses"></span><span hidden data-source="estoque_atual"></span>\n'
 rep('  <p class="pm-foot" id="notas">', aba + fontes + '\n  <p class="pm-foot" id="notas">')
-rep("for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados', 'estados_ly'])", "for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados', 'estados_ly', 'diario', 'pecas_meses', 'estoque_atual'])")
+rep("for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados', 'estados_ly'])", "for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados_ly', 'diario', 'pecas_meses', 'estoque_atual'])")
 rep("    const gi = dash.data('giro');", "    if (window.estoqueOnData) window.estoqueOnData();\n    const gi = dash.data('giro');")
 cola = open(repo + '/src/estoque_artefato.js').read()
 for t in [open(repo + '/src/previsao.js').read(), open(repo + '/src/fichas.js').read(), open(repo + '/src/estoque.js').read(), open(repo + '/src/compra.js').read(), cola]:
