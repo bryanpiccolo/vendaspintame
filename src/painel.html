@@ -479,6 +479,7 @@ dash.calc('linhas', {
       id: a.id, dim: a.dim, estampa: a.estampa, categoria: a.categoria, produto: a.produto, tamanho: a.tamanho,
       pecas: a.pecas, gmv: rd(a.gmv), devolucoes: rd(a.devolucoes), receita: rd(a.receita), cmv: rd(a.cmv), margem: rd(a.margem),
       margem_pct: a.receita ? a.margem / a.receita : null, frete: rd(a.frete), receita_sem_custo: rd(a.receita_sem_custo),
+      ticket: a.pecas > 0 ? rd(a.gmv / a.pecas) : null,
     }));
   },
 });
@@ -770,7 +771,7 @@ dash.calc('giro', {
     if (v.includes('categoria')) cols.push({ f: 'categoria', label: 'Categoria', txt: true });
     if (v.includes('produto')) cols.push({ f: 'produto', label: 'Produto', txt: true });
     if (v.includes('tamanho')) cols.push({ f: 'tamanho', label: 'Tamanho', txt: true, size: true });
-    cols.push({ f: 'pecas', label: 'Peças' }, { f: 'gmv', label: 'GMV (sem frete)' }, { f: 'devolucoes', label: 'Devoluções', sm: true }, { f: 'receita', label: 'Receita líquida' }, { f: 'cmv', label: 'CMV', sm: true }, { f: 'margem', label: 'Margem bruta', sm: true }, { f: 'margem_pct', label: 'Margem %' });
+    cols.push({ f: 'pecas', label: 'Peças' }, { f: 'gmv', label: 'GMV (sem frete)' }, { f: 'ticket', label: 'Ticket médio (por peça)' }, { f: 'devolucoes', label: 'Devoluções', sm: true }, { f: 'receita', label: 'Receita líquida' }, { f: 'cmv', label: 'CMV', sm: true }, { f: 'margem', label: 'Margem bruta', sm: true }, { f: 'margem_pct', label: 'Margem %' });
     const sortF = st.sort || (v === 'categoria_tamanho' ? 'categoria' : v === 'estampa_tamanho' ? 'estampa' : st.tm);
     let rows = L.filter((l) => l.dim === v);
     if (st.q) rows = rows.filter((l) => (l.estampa + ' ' + l.categoria + ' ' + l.produto + ' ' + l.tamanho).toLowerCase().includes(st.q));
