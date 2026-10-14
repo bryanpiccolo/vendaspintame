@@ -14,7 +14,7 @@
   const pct0 = (v) => v == null || !isFinite(v) ? '—' : new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 }).format(v);
   const pct1 = (v) => v == null || !isFinite(v) ? '—' : new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
   const pct2 = (v) => v == null || !isFinite(v) ? '—' : new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-  const vr = (v) => v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + pct0(Math.abs(v));
+  const vr = (v) => v == null || !isFinite(v) ? '—' : Math.abs(v) < 0.005 ? '0%' : (v > 0 ? '+' : '−') + pct0(Math.abs(v));
   const pp = (v) => v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + n1.format(Math.abs(v * 100)) + ' p.p.';
   const dataBR = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
   const addDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -22,6 +22,7 @@
   const dias = (a, b) => { const out = []; for (let d = a; d <= b; d = addDias(d, 1)) out.push(d); return out; };
   const curto = (s, n = 44) => { s = String(s || '').replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas|\s*\+ canetinhas/gi, '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   const NAO_PRODUTO = /embalagem|envelope|sacola/i;
+  const fisico = (v) => String(v || '').split('/').map((x) => x.trim()).filter((x) => x && !/canetinha|gr[aá]tis|7[.,]90|unidades/i.test(x)).join(' / ') || 'Default Title';
   const CORES = ['#3b6fd8', '#d9822b', '#2f9e6e', '#a35ec9', '#c94f5e', '#5aa6b8'];
   const lista = (arr, f, n = 3) => arr.slice(0, n).map(f).join('; ');
 
@@ -86,10 +87,27 @@
     if (estCache.has(dia)) return estCache.get(dia);
     const rows = D.estoque && D.estoque[dia];
     let m = null;
-    if (rows) { m = new Map(); for (const r of rows) { const k = String(r.product_title || '').replace(/\s+/g, ' ').trim(); m.set(k, (m.get(k) || 0) + Math.max(0, num(r.ending_inventory_units))); } }
+    if (rows) {
+      // os kits com 6 e com 12 canetinhas usam a mesma roupa: conta o maior estoque de cada tamanho uma vez só
+      const fis = new Map();
+      for (const r of rows) { const p = String(r.product_title || '').replace(/\s+/g, ' ').trim(); const k = p + '\u0001' + fisico(r.product_variant_title); fis.set(k, Math.max(fis.get(k) || 0, Math.max(0, num(r.ending_inventory_units)))); }
+      m = new Map(); for (const [k, v] of fis) { const p = k.split('\u0001')[0]; m.set(p, (m.get(p) || 0) + v); }
+    }
     estCache.set(dia, m); return m;
   }
 
+  const EFEITO = [
+    ['gmv', (m) => m.gmv_d, null, 'GMV por dia'],
+    ['lucro', (m) => m.lucro_d, null, 'Lucro bruto por dia'],
+    ['pedidos', (m) => m.pedidos_d, null, 'Pedidos por dia'],
+    ['sessoes', (m) => (m.temSessoes ? m.sessoes_d : null), null, 'Sessões por dia'],
+    ['conv', (m) => (m.temSessoes ? m.conv : null), null, 'Conversão'],
+    ['ticket', (m) => m.ticket, null, 'Ticket médio'],
+    ['ppp', (m) => m.pecas_pedido, null, 'Peças por pedido'],
+    ['preco', (m) => m.preco_peca, null, 'Preço médio por peça'],
+    ['margem', (m) => m.margem, 'pp', 'Margem bruta'],
+    ['desc', (m) => m.desc_pct, 'pp', 'Desconto (% da venda bruta)'],
+  ];
   function calcula() {
     estCache = new Map();
     const loja = new Map(D.loja.map((r) => [String(r.day).slice(0, 10), r]));
@@ -112,6 +130,16 @@
     const promos = per.filter((p) => !p.base);
     // por produto, comparação com a base (peças por dia e preço)
     if (base) { const bm = new Map(base.prods.map((a) => [a.nome, a])); for (const P of promos) for (const a of P.prods) { const b = bm.get(a.nome); a.base = b || null; a.var_pecas = b && b.pecas_d > 0 ? a.pecas_d / b.pecas_d - 1 : null; a.var_preco = b && b.preco && a.preco ? a.preco / b.preco - 1 : null; } }
+    // Efeito sem a sazonalidade: variação de 2026 contra o período antes, dividida pela variação das mesmas datas em 2025
+    // contra o mesmo período antes em 2025. Mostra quanto a promoção rendeu acima do que a época do ano já rende.
+    if (base) for (const P of promos) {
+      P.liq = {};
+      for (const [k, f, tipo] of EFEITO) {
+        const a = f(P.m), b = f(base.m), c = f(P.ly), d = f(base.ly);
+        if ([a, b, c, d].some((v) => v == null || !isFinite(v)) || (tipo !== 'pp' && (!b || !c || !d))) { P.liq[k] = null; continue; }
+        P.liq[k] = tipo === 'pp' ? { v26: a - b, v25: c - d, liq: (a - b) - (c - d), tipo } : { v26: a / b - 1, v25: c / d - 1, liq: (a / b) / (c / d) - 1, tipo };
+      }
+    }
     R = { per, base, promos, loja, ses };
     if (!st.p || !per.some((p) => p.id === st.p)) st.p = guarda.le('p', null);
     if (!st.p || !per.some((p) => p.id === st.p)) st.p = promos.length ? promos[promos.length - 1].id : per[0] && per[0].id;
@@ -124,7 +152,7 @@
     if (!R) calcula();
     if (!R.per.length) { document.getElementById('pr-janela').textContent = 'Nenhum período de promoção até a data dos dados.'; return; }
     document.getElementById('pr-janela').textContent = `Dados até ${D.referencia.split('-').reverse().join('/')}. ${R.promos.length} promoções comparadas com ${R.base ? 'o período antes delas (' + dataBR(R.base.ini) + ' a ' + dataBR(R.base.fim) + ')' : 'entre si'} e com as mesmas datas de 2025.`;
-    drawPeriodos(); drawComparativo(); drawGrafico(); drawProdutos(); drawDiagnostico(); drawConclusao();
+    drawPeriodos(); drawComparativo(); drawEfeito(); drawGrafico(); drawProdutos(); drawDiagnostico(); drawConclusao();
   }
 
   function drawPeriodos() {
@@ -154,10 +182,6 @@
     ['Adicionou ao carrinho', (m) => m.temSessoes ? m.carrinho_pct : null, pct1, 1, 'pp'],
     ['Conversão (comprou ÷ sessões)', (m) => m.temSessoes ? m.conv : null, pct2, 1, 'pp'],
     ['Checkout que virou compra', (m) => m.temSessoes ? m.fecha_checkout : null, pct0, 1, 'pp'],
-    ['Contra as mesmas datas de 2025'],
-    ['GMV por dia em 2025', (m, P) => P.ly.gmv_d, brl.format, 0, null, true],
-    ['Variação do GMV por dia', (m, P) => P.var_ly, vr, 1, null, true],
-    ['Conversão em 2025', (m, P) => P.ly.temSessoes ? P.ly.conv : null, pct2, 0, null, true],
   ];
   function drawComparativo() {
     const t = document.getElementById('pr-comparativo');
@@ -176,8 +200,34 @@
         if (P.base) td.classList.add('pm-ref');
         else if (melhor && vp.length > 1 && v != null && mx !== mn) { if (v === (melhor > 0 ? mx : mn)) td.classList.add('pm-melhor'); else if (v === (melhor > 0 ? mn : mx)) td.classList.add('pm-pior'); }
         if (!P.base && !semVar && R.base) { const b = f(R.base.m, R.base); if (v != null && b != null && isFinite(v) && isFinite(b) && b !== 0) td.appendChild(el('span', 'pm-var', 'vs antes ' + (tipoVar === 'pp' ? pp(v - b) : vr(v / b - 1)))); }
+        if (!semVar) { const l = f(P.ly, { ...P, m: P.ly }); if (v != null && l != null && isFinite(v) && isFinite(l) && l !== 0) td.appendChild(el('span', 'pm-var', 'vs 2025 ' + (tipoVar === 'pp' ? pp(v - l) : vr(v / l - 1)) + ' (' + fmt(l) + ')')); }
         tr.appendChild(td);
       });
+      tb.appendChild(tr);
+    }
+  }
+
+  function drawEfeito() {
+    const t = document.getElementById('pr-efeito'); if (!t) return;
+    const hr = t.querySelector('thead tr'); hr.replaceChildren(el('th', '', 'Indicador'));
+    const tb = t.querySelector('tbody'); tb.replaceChildren();
+    if (!R.base || !R.promos.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Precisa do período antes das promoções e das mesmas datas de 2025.'); tr.appendChild(td); tb.appendChild(tr); return; }
+    for (const P of R.promos) { const th = el('th'); th.append(P.nome); th.appendChild(el('span', 'pm-sub', `${dataBR(P.ini)}–${dataBR(P.fim)}`)); hr.appendChild(th); }
+    for (const [k, , tipo, rot] of EFEITO) {
+      const tr = el('tr'); tr.appendChild(el('td', '', rot));
+      const vals = R.promos.map((P) => (P.liq && P.liq[k] ? P.liq[k].liq : null)).filter((v) => v != null);
+      const mx = Math.max(...vals), mn = Math.min(...vals);
+      const melhor = k === 'desc' ? -1 : k === 'preco' ? 0 : 1;
+      for (const P of R.promos) {
+        const x = P.liq && P.liq[k]; const td = el('td');
+        if (!x) { td.textContent = '—'; tr.appendChild(td); continue; }
+        const f = tipo === 'pp' ? pp : vr;
+        td.textContent = f(x.liq);
+        if (melhor && vals.length > 1 && mx !== mn) { if (x.liq === (melhor > 0 ? mx : mn)) td.classList.add('pm-melhor'); else if (x.liq === (melhor > 0 ? mn : mx)) td.classList.add('pm-pior'); }
+        td.appendChild(el('span', 'pm-var', '2026 vs antes ' + f(x.v26)));
+        td.appendChild(el('span', 'pm-var', '2025 mesmas datas ' + f(x.v25)));
+        tr.appendChild(td);
+      }
       tb.appendChild(tr);
     }
   }
@@ -352,6 +402,17 @@
       if (m.frete_pedido != null && b.frete_pedido != null && m.frete_pedido >= b.frete_pedido * 0.9) C.push(`O frete cobrado por pedido não caiu (${brl2.format(b.frete_pedido)} → ${brl2.format(m.frete_pedido)}): sinal de que poucos pedidos usaram o frete grátis.`);
       else if (m.frete_pedido != null && b.frete_pedido) M.push({ t: 'O frete grátis foi usado.', d: `Frete cobrado por pedido caiu de ${brl2.format(b.frete_pedido)} para ${brl2.format(m.frete_pedido)}.` });
     }
+    // efeito sem a sazonalidade
+    const lq = P.liq && P.liq.gmv, ll = P.liq && P.liq.lucro;
+    if (lq) {
+      const txt = `As mesmas datas de 2025 venderam ${vr(lq.v25)} por dia contra o início de agosto de 2025; em 2026 o salto foi de ${vr(lq.v26)}. Descontando o efeito da época, a promoção rendeu ${vr(lq.liq)} no GMV por dia${ll ? ' e ' + vr(ll.liq) + ' no lucro bruto' : ''}.`;
+      if (lq.liq >= 0.5) M.push({ t: 'Efeito real da promoção alto.', d: txt });
+      else if (lq.v25 >= 0.5 && lq.liq <= 0.2) A.push({ t: 'Quase todo o crescimento veio da data, não da promoção.', d: txt });
+      else if (lq.liq <= 0.15) A.push({ t: 'Efeito real da promoção baixo.', d: txt });
+      else C.push(txt);
+      const lc = P.liq.conv, ls = P.liq.sessoes;
+      if (lc && ls && ls.liq >= 0.5 && lc.liq <= -0.25) C.push(`Mesmo descontando a época, as sessões subiram ${vr(ls.liq)} e a conversão caiu ${vr(lc.liq)}: o tráfego extra da campanha foi de baixa intenção de compra.`);
+    }
     // ano anterior
     if (P.var_ly != null) {
       const t = `${vr(P.var_ly)} no GMV por dia contra as mesmas datas de 2025 (${brl.format(P.ly.gmv_d)} por dia)` + (P.ly.temSessoes && m.temSessoes ? `; sessões ${vr(r(m.sessoes_d, P.ly.sessoes_d))} e conversão ${pct2(P.ly.conv)} → ${pct2(m.conv)}.` : '.');
@@ -396,12 +457,18 @@
     const porLucro = ps.slice().sort((a, b) => b.m.lucro_d - a.m.lucro_d);
     const melhor = porLucro[0], pior = porLucro[porLucro.length - 1];
     const x = (P) => B && B.m.lucro_d ? ` (${n1.format(P.m.lucro_d / B.m.lucro_d)}× o período antes)` : '';
-    let txt = `A promoção que mais deu resultado foi ${melhor.nome}: ${brl.format(melhor.m.lucro_d)} de lucro bruto e ${brl.format(melhor.m.gmv_d)} de GMV por dia${x(melhor)}.`;
+    let txt = `Em números absolutos, o período com mais resultado foi ${melhor.nome}: ${brl.format(melhor.m.lucro_d)} de lucro bruto e ${brl.format(melhor.m.gmv_d)} de GMV por dia${x(melhor)}.`;
     if (ps.length > 1) txt += ` A mais fraca foi ${pior.nome}, com ${brl.format(pior.m.lucro_d)} de lucro bruto por dia${x(pior)}.`;
     if (ps.some((P) => { alertasDados(P); return P.id === melhor.id && P.custoMudou; })) txt += ` Parte do lucro de ${melhor.nome} vem da redução do custo cadastrado no Shopify durante o período, não só da promoção.`;
     const comLy0 = ps.filter((P) => P.var_ly != null);
     const melhorLy = comLy0.slice().sort((a, b) => b.var_ly - a.var_ly)[0];
-    if (melhorLy && comLy0.length > 1 && melhorLy.id !== melhor.id) txt += ` Comparando com as mesmas datas de 2025, o que tira o efeito da data comemorativa, a melhor foi ${melhorLy.nome} (${vr(melhorLy.var_ly)}, contra ${vr(Math.min(...comLy0.map((P) => P.var_ly)))} na pior).`;
+    const comLiq = ps.filter((P) => P.liq && P.liq.gmv).sort((a, b) => b.liq.gmv.liq - a.liq.gmv.liq);
+    if (comLiq.length > 1) {
+      const a = comLiq[0], z = comLiq[comLiq.length - 1];
+      txt += ` Tirando o efeito da época (comparando o salto de cada período com o das mesmas datas de 2025), a melhor foi ${a.nome}, com ${vr(a.liq.gmv.liq)} no GMV por dia além do que a época já rende, e a pior foi ${z.nome} (${vr(z.liq.gmv.liq)}).`;
+      const dc = ps.find((P) => P.liq && P.liq.gmv && P.liq.gmv.v25 >= 0.5);
+      if (dc) txt += ` Em ${dc.nome}, as mesmas datas de 2025 já vendiam ${vr(dc.liq.gmv.v25)} acima do início de agosto: a maior parte do crescimento é da data.`;
+    }
     const porTicket = ps.slice().sort((a, b) => (b.m.ticket || 0) - (a.m.ticket || 0))[0];
     if (porTicket) txt += ` O maior ticket médio foi o de ${porTicket.nome} (${brl.format(porTicket.m.ticket)} por pedido${porTicket.m.pecas_pedido ? ', ' + n2.format(porTicket.m.pecas_pedido) + ' peças' : ''}).`;
     box.appendChild(el('p', 'pm-pr-conclusao', txt));

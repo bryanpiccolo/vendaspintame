@@ -44,14 +44,14 @@ export function promoConsultas() {
     promo_sessoes: `FROM sessions SHOW sessions, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout GROUP BY day SINCE ${anoAntes(ini)} UNTIL ${fim} ORDER BY day ASC ${L}`,
     promo_produtos: `FROM sales SHOW ${M_PROD} GROUP BY day, product_type, product_title SINCE ${ini} UNTIL ${fim} ORDER BY day ASC ${L}`,
   };
-  for (const f of [...new Set(per.map((p) => p.fim))].sort()) q['promo_est_' + f.replace(/-/g, '')] = `FROM inventory SHOW ${M_EST} GROUP BY product_title SINCE ${f} UNTIL ${f} ORDER BY ending_inventory_units DESC ${L}`;
+  for (const f of [...new Set(per.map((p) => p.fim))].sort()) q['promo_est_' + f.replace(/-/g, '')] = `FROM inventory SHOW ${M_EST} GROUP BY product_title, product_variant_title SINCE ${f} UNTIL ${f} ORDER BY product_title ASC ${L}`;
   return q;
 }
 // Junta as respostas das consultas de promoção nos dados da aba.
 export function promoDados(R) {
   const estoque = {};
   for (const k of Object.keys(R).filter((k) => k.startsWith('promo_est_'))) {
-    const d = k.slice(10); estoque[`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`] = R[k].map((r) => ({ product_title: r.product_title, ending_inventory_units: r.ending_inventory_units }));
+    const d = k.slice(10); estoque[`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`] = R[k].filter((r) => r.ending_inventory_units).map((r) => ({ product_title: r.product_title, product_variant_title: r.product_variant_title, ending_inventory_units: r.ending_inventory_units }));
   }
   const dia = (r) => ({ ...r, day: String(r.day).slice(0, 10) });
   return { referencia: ref, loja: (R.promo_loja || []).map(dia), sessoes: (R.promo_sessoes || []).map(dia), produtos: (R.promo_produtos || []).map(dia), estoque };
