@@ -11,7 +11,7 @@
 //   REF_DATE    último dia fechado, AAAA-MM-DD (padrão: ontem em Brasília)
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const TZ = 'America/Sao_Paulo';
@@ -30,6 +30,35 @@ const M_EST = 'starting_inventory_units, ending_inventory_units, inventory_units
 const DIM = 'product_type, product_title, product_variant_title';
 const L = 'LIMIT 20000';
 
+// Relatórios de promoção: períodos em src/promocoes.json.
+export const PROMO = JSON.parse(readFileSync(path.join(root, 'src', 'promocoes.json'), 'utf8'));
+const anoAntes = (iso) => (+iso.slice(0, 4) - 1) + iso.slice(4);
+function promoPeriodos() {
+  return [PROMO.referencia, ...PROMO.promocoes].filter((p) => p.ini <= ref).map((p) => ({ ...p, fim: p.fim > ref ? ref : p.fim }));
+}
+export function promoConsultas() {
+  const per = promoPeriodos(); if (!per.length) return {};
+  const ini = per.reduce((m, p) => (p.ini < m ? p.ini : m), per[0].ini), fim = per.reduce((m, p) => (p.fim > m ? p.fim : m), per[0].fim);
+  const q = {
+    promo_loja: `FROM sales SHOW ${M_VENDAS} GROUP BY day SINCE ${anoAntes(ini)} UNTIL ${fim} ORDER BY day ASC ${L}`,
+    promo_sessoes: `FROM sessions SHOW sessions, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout GROUP BY day SINCE ${anoAntes(ini)} UNTIL ${fim} ORDER BY day ASC ${L}`,
+    promo_produtos: `FROM sales SHOW ${M_PROD} GROUP BY day, product_type, product_title SINCE ${ini} UNTIL ${fim} ORDER BY day ASC ${L}`,
+  };
+  for (const f of [...new Set(per.map((p) => p.fim))].sort()) q['promo_est_' + f.replace(/-/g, '')] = `FROM inventory SHOW ${M_EST} GROUP BY product_title SINCE ${f} UNTIL ${f} ORDER BY ending_inventory_units DESC ${L}`;
+  return q;
+}
+// Junta as respostas das consultas de promoção nos dados da aba.
+export function promoDados(R) {
+  const estoque = {};
+  for (const k of Object.keys(R).filter((k) => k.startsWith('promo_est_'))) {
+    const d = k.slice(10); estoque[`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`] = R[k].map((r) => ({ product_title: r.product_title, ending_inventory_units: r.ending_inventory_units }));
+  }
+  const dia = (r) => ({ ...r, day: String(r.day).slice(0, 10) });
+  return { referencia: ref, loja: (R.promo_loja || []).map(dia), sessoes: (R.promo_sessoes || []).map(dia), produtos: (R.promo_produtos || []).map(dia), estoque };
+}
+
+export const promoJs = (js) => { if (!js.includes('/*PROMO_CFG*/null')) throw new Error('Marcador PROMO_CFG não encontrado'); return js.replace('/*PROMO_CFG*/null', () => JSON.stringify(PROMO)); };
+
 export function consultas() {
   const q = {
     estados: `FROM sales SHOW ${M_VENDAS} GROUP BY month, shipping_region SINCE 2022-01-01 UNTIL ${ref} ORDER BY month ASC ${L}`,
@@ -41,7 +70,7 @@ export function consultas() {
     estoque_2023_2024: `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE 2023-01-01 UNTIL 2024-12-31 ORDER BY month ASC ${L}`,
   };
   for (let y = 2025; y <= Y; y++) q[`estoque_${y}`] = `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE ${y}-01-01 UNTIL ${y === Y ? ref : y + '-12-31'} ORDER BY month ASC ${L}`;
-  return q;
+  return { ...q, ...promoConsultas() };
 }
 
 // Aceita a resposta como o conector devolve ({columns, rows: [[...]]}) ou como a API ({rows: [{...}]}).
@@ -129,14 +158,15 @@ async function main() {
     produtos_ontem: compacta(prodOntem, P),
     estoque: compacta(estoques, E),
     estoque_ontem: compacta(R.estoque_ontem.map((r) => ({ month: ref, ...r })), EO),
+    promo: (() => { const p = promoDados(R); return { ...p, produtos: compacta(p.produtos, ['day', 'product_type', 'product_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit']) }; })(),
   };
   const tpl = await readFile(path.join(root, 'src', 'painel.html'), 'utf8');
   const d3 = await readFile(path.join(root, 'node_modules', 'd3', 'dist', 'd3.min.js'), 'utf8');
   if (/<\/script/i.test(d3)) throw new Error('d3 contém </script>');
   if (!tpl.includes('/*DADOS*/null')) throw new Error('Marcador de dados não encontrado no modelo');
   const prev = await readFile(path.join(root, 'src', 'previsao.js'), 'utf8');
-  const estJs = [await readFile(path.join(root, 'src', 'fichas.js'), 'utf8'), await readFile(path.join(root, 'src', 'estoque.js'), 'utf8'), await readFile(path.join(root, 'src', 'compra.js'), 'utf8'), await readFile(path.join(root, 'src', 'historico.js'), 'utf8'), await readFile(path.join(root, 'src', 'analise.js'), 'utf8')].join('\n');
-  const abaEst = (await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_compra.html'), 'utf8'));
+  const estJs = [await readFile(path.join(root, 'src', 'fichas.js'), 'utf8'), await readFile(path.join(root, 'src', 'estoque.js'), 'utf8'), await readFile(path.join(root, 'src', 'compra.js'), 'utf8'), await readFile(path.join(root, 'src', 'historico.js'), 'utf8'), await readFile(path.join(root, 'src', 'analise.js'), 'utf8'), promoJs(await readFile(path.join(root, 'src', 'promocoes.js'), 'utf8')), 'if (window.PromoAba && typeof DADOS !== "undefined" && DADOS && DADOS.promo) PromoAba.define(DADOS.promo);'].join('\n');
+  const abaEst = (await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_compra.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_promocoes.html'), 'utf8'));
   for (const [n, t] of [['previsao.js', prev], ['estoque.js', estJs]]) if (/<\/script/i.test(t)) throw new Error(n + ' contém </script>');
   for (const m of ['/*PREVISAO*/', '/*ESTOQUE*/', '<!--ABA_ESTOQUE-->']) if (!tpl.includes(m)) throw new Error('Marcador ' + m + ' não encontrado no modelo');
   const json = JSON.stringify(dados).replace(/</g, '\\u003c');

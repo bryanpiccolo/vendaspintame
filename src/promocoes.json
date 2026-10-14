@@ -1,0 +1,9 @@
+{
+  "referencia": { "id": "antes", "nome": "Antes das promoções", "ini": "2026-08-01", "fim": "2026-08-20", "mecanica": "Base de comparação: dias sem campanha antes da primeira promoção." },
+  "promocoes": [
+    { "id": "ate50", "nome": "Promo até 50% off", "ini": "2026-08-21", "fim": "2026-08-31", "tipo": "remarcacao", "mecanica": "Descontos de até 50% direto no preço dos produtos." },
+    { "id": "dupla", "nome": "Data dupla", "ini": "2026-09-01", "fim": "2026-09-10", "tipo": "pontual", "mecanica": "Descontos pontuais em datas específicas." },
+    { "id": "cliente", "nome": "Semana do cliente", "ini": "2026-09-11", "fim": "2026-09-20", "tipo": "progressivo", "mecanica": "15%, 20% e 25% de desconto na compra de 1, 2 ou 3 peças." },
+    { "id": "criancas", "nome": "Dia das Crianças", "ini": "2026-09-22", "fim": "2026-10-12", "tipo": "frete", "limiteFrete": 199, "mecanica": "Frete grátis a partir de R$ 199." }
+  ]
+}
