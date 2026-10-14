@@ -92,8 +92,8 @@
     if (rows) {
       // os kits com 6 e com 12 canetinhas usam a mesma roupa: conta o maior estoque de cada tamanho uma vez só
       const fis = new Map();
-      for (const r of rows) { const p = String(r.product_title || '').replace(/\s+/g, ' ').trim(); const k = p + '\u0001' + fisico(r.product_variant_title); fis.set(k, Math.max(fis.get(k) || 0, Math.max(0, num(r.ending_inventory_units)))); }
-      m = new Map(); for (const [k, v] of fis) { const p = k.split('\u0001')[0]; m.set(p, (m.get(p) || 0) + v); }
+      for (const r of rows) { const p = String(r.product_title || '').replace(/\s+/g, ' ').trim(); const k = p + '||' + fisico(r.product_variant_title); fis.set(k, Math.max(fis.get(k) || 0, Math.max(0, num(r.ending_inventory_units)))); }
+      m = new Map(); for (const [k, v] of fis) { const p = k.split('||')[0]; m.set(p, (m.get(p) || 0) + v); }
     }
     estCache.set(dia, m); return m;
   }
