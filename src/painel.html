@@ -626,6 +626,7 @@ dash.calc('giro', {
 
   // período: 'ontem' | 'm:YYYY-MM' | 'a:YYYY'
   const st = { p: 'm:' + mesAtual, tp: 'm:' + mesAtual, gy: anoAtual, m: 'gmv', tm: 'gmv', v: 'produto', sort: null, dir: -1, q: '' };
+  window.PM = { st, rotulo: (p) => rotulo(p), mesAtual, anoAtual, L: [], G: [], EM: [] };
   document.querySelectorAll('.pm-h-mes').forEach((el) => el.setAttribute('data-where', 'periodo=m:' + mesAtual));
   document.querySelectorAll('.pm-h-ano').forEach((el) => el.setAttribute('data-where', 'periodo=a:' + anoAtual));
 
@@ -998,9 +999,9 @@ dash.calc('giro', {
     if (res.status === 'ok') { drawHeadline(R); drawCards(R); if (st.aba === 'mes') { drawChart(R); drawMesAno(R); } }
     else if (res.status === 'error') { failLine(chart); }
     else { chart.replaceChildren(); }
-    if (lin.status === 'ok') { L = lin.data; drawTable(); }
-    const em = dash.data('estados_mes'); if (em.status === 'ok') { EM = em.data; if (st.aba === 'estados') drawEstados(); } else if (em.status === 'error') failLine(document.querySelector('#tabela-estados tbody'));
-    const gi = dash.data('giro'); if (gi.status === 'ok') { G = gi.data; drawGiro(); } else if (gi.status === 'error') failLine(document.querySelector('#tabela-giro tbody'));
+    if (lin.status === 'ok') { L = lin.data; window.PM.L = L; drawTable(); }
+    const em = dash.data('estados_mes'); if (em.status === 'ok') { EM = em.data; window.PM.EM = EM; if (st.aba === 'estados') drawEstados(); } else if (em.status === 'error') failLine(document.querySelector('#tabela-estados tbody'));
+    const gi = dash.data('giro'); if (gi.status === 'ok') { G = gi.data; window.PM.G = G; drawGiro(); } else if (gi.status === 'error') failLine(document.querySelector('#tabela-giro tbody'));
   }
 
   dash.onData(draw);

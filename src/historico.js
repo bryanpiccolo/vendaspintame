@@ -117,6 +117,7 @@
       }).on('mouseleave', () => { tip.hidden = true; });
   }
 
+  window.PM_HIST = { fonte, idDe };
   document.addEventListener('click', (ev) => {
     const tr = ev.target.closest && ev.target.closest('#tabela tbody tr[data-key]');
     if (!tr) return;

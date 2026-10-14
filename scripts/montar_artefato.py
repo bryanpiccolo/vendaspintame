@@ -13,7 +13,7 @@ rep('  <p class="pm-foot" id="notas">', aba + fontes + '\n  <p class="pm-foot" i
 rep("for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados', 'estados_ly'])", "for (const id of ['mensal', 'ano_passado', 'ontem', 'produtos', 'estoque', 'estados_ly', 'diario', 'pecas_meses', 'estoque_atual'])")
 rep("    const gi = dash.data('giro');", "    if (window.estoqueOnData) window.estoqueOnData();\n    const gi = dash.data('giro');")
 cola = open(repo + '/src/estoque_artefato.js').read()
-for t in [open(repo + '/src/previsao.js').read(), open(repo + '/src/fichas.js').read(), open(repo + '/src/estoque.js').read(), open(repo + '/src/compra.js').read(), open(repo + '/src/historico.js').read(), cola]:
+for t in [open(repo + '/src/previsao.js').read(), open(repo + '/src/fichas.js').read(), open(repo + '/src/estoque.js').read(), open(repo + '/src/compra.js').read(), open(repo + '/src/historico.js').read(), open(repo + '/src/analise.js').read(), cola]:
     assert '</script' not in t
     s = s.rstrip() + '\n<script>\n' + t + '\n</script>\n'
 open(dst, 'w').write(s)
