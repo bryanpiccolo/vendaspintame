@@ -17,6 +17,8 @@
   const vr = (v) => v == null || !isFinite(v) ? '—' : Math.abs(v) < 0.005 ? '0%' : (v > 0 ? '+' : '−') + pct0(Math.abs(v));
   const pp = (v) => v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + n1.format(Math.abs(v * 100)) + ' p.p.';
   const dataBR = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  // datas podem chegar como texto ou como data, dependendo de onde vêm os dados
+  const iso = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10));
   const addDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const anoAntes = (iso) => (+iso.slice(0, 4) - 1) + iso.slice(4);
   const dias = (a, b) => { const out = []; for (let d = a; d <= b; d = addDias(d, 1)) out.push(d); return out; };
@@ -56,7 +58,7 @@
   function prodsDoPeriodo(P) {
     const acc = new Map();
     for (const r of D.produtos) {
-      const d = String(r.day).slice(0, 10); if (d < P.ini || d > P.fim) continue;
+      const d = iso(r.day); if (d < P.ini || d > P.fim) continue;
       const k = String(r.product_title || '').replace(/\s+/g, ' ').trim(); if (!k) continue;
       let a = acc.get(k); if (!a) { a = { nome: k, pecas: 0, bruto: 0, desconto: 0, receita: 0, lucro: 0, cmv: 0, semCusto: 0 }; acc.set(k, a); }
       a.pecas += num(r.net_items_sold); a.bruto += num(r.gross_sales); a.desconto += -num(r.discounts); a.receita += num(r.net_sales); a.lucro += num(r.gross_profit); a.cmv += num(r.cost_of_goods_sold);
@@ -110,8 +112,8 @@
   ];
   function calcula() {
     estCache = new Map();
-    const loja = new Map(D.loja.map((r) => [String(r.day).slice(0, 10), r]));
-    const ses = new Map(D.sessoes.map((r) => [String(r.day).slice(0, 10), r]));
+    const loja = new Map(D.loja.map((r) => [iso(r.day), r]));
+    const ses = new Map(D.sessoes.map((r) => [iso(r.day), r]));
     const ref = D.referencia;
     const brutos = [{ ...CFG.referencia, base: true }, ...CFG.promocoes];
     const per = [];
@@ -511,10 +513,10 @@
     const X = { loja: [], sessoes: [], produtos: [], estoque: {}, referencia: null };
     for (const r of rows) {
       if (r.t === 'loja') X.loja.push(r); else if (r.t === 'ses') X.sessoes.push(r); else if (r.t === 'prod') X.produtos.push(r);
-      else if (r.t === 'est') (X.estoque[r.fim] = X.estoque[r.fim] || []).push(r);
-      else if (r.t === 'ref') X.referencia = r.referencia;
+      else if (r.t === 'est') { const f = iso(r.fim); (X.estoque[f] = X.estoque[f] || []).push(r); }
+      else if (r.t === 'ref') X.referencia = iso(r.referencia);
     }
-    if (!X.referencia) X.referencia = X.loja.reduce((m, r) => (String(r.day) > m ? String(r.day).slice(0, 10) : m), '');
+    if (!X.referencia) X.referencia = X.loja.reduce((m, r) => (String(r.day) > m ? iso(r.day) : m), '');
     window.PromoAba.define(X);
   }
   if (window.dash && typeof dash.onData === 'function') { try { dash.onData(() => { carregaDoPainel(); }); } catch (e) { /* sem onData */ } }
