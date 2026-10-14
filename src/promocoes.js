@@ -509,7 +509,8 @@
     if (D || !window.dash || typeof dash.data !== 'function') return;
     const d = dash.data('promocoes');
     if (!d || d.status !== 'ok') { if (d && d.status === 'error' && aba() && !aba().hidden) document.getElementById('pr-janela').textContent = 'Não foi possível carregar os dados das promoções. Tente atualizar a página.'; return; }
-    const rows = Array.isArray(d.data) ? d.data : (d.data && d.data.rows) || [];
+    const bruto = Array.isArray(d.data) ? d.data : (d.data && d.data.rows) || [];
+    const rows = bruto.map((r) => { if (r && typeof r.j === 'string') { try { return JSON.parse(r.j); } catch (e) { return {}; } } return r || {}; });
     const X = { loja: [], sessoes: [], produtos: [], estoque: {}, referencia: null };
     for (const r of rows) {
       if (r.t === 'loja') X.loja.push(r); else if (r.t === 'ses') X.sessoes.push(r); else if (r.t === 'prod') X.produtos.push(r);

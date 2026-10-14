@@ -19,8 +19,7 @@ for (const r of p.loja) linhas.push({ t: 'loja', ...r });
 for (const r of p.sessoes) linhas.push({ t: 'ses', ...r });
 for (const r of p.produtos) linhas.push({ t: 'prod', ...r });
 for (const [fim, rows] of Object.entries(p.estoque)) for (const r of rows) linhas.push({ t: 'est', fim, ...r });
-// O painel do Claude monta as colunas a partir das primeiras linhas: todas as linhas levam os mesmos campos.
-const campos = [...new Set(linhas.flatMap((r) => Object.keys(r)))];
-const uniformes = linhas.map((r) => Object.fromEntries(campos.map((c) => [c, r[c] ?? null])));
-await writeFile(saida, JSON.stringify(uniformes));
+// O painel do Claude monta as colunas da tabela a partir das primeiras linhas e infere os tipos.
+// Cada linha vira um texto JSON numa coluna só ("j"), para o painel não descartar nem converter campos.
+await writeFile(saida, JSON.stringify(linhas.map((r) => ({ j: JSON.stringify(r) }))));
 console.log(`ok: ${linhas.length} linhas (dados até ${ref})`);
