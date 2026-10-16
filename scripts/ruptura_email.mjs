@@ -91,17 +91,32 @@ if (pre.length) {
 if (temAnt) H.push(`<p style="margin-top:18px">${repostos.length ? `<b>Saíram da lista de sem estoque desde o envio anterior (${repostos.length}):</b> ${esc(repostos.map((k) => k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '')).join('; '))}.` : 'Nenhuma peça saiu da lista de sem estoque desde o envio anterior.'}</p>`);
 H.push(`<p style="font-size:11px;color:#777;margin-top:22px">Mesma previsão da aba Estoque do painel: participação de cada peça nas vendas dos ${janela}, sobre a previsão de vendas da loja dia a dia. Os kits com 6 e com 12 canetinhas contam como a mesma peça. Ficam fora os mesmos produtos que a aba Estoque tira do risco de ruptura (Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calças, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons) e embalagens. Só vendas do site.</p></div>`);
 
+// Texto simples e sem acento, no mesmo formato do Calendário e do alerta de prazos: é o que chega no comercial@.
+const ascii = (x) => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E\n]/g, '').replace(/ +/g, ' ').trim();
+const linhaSem = (i, k) => `${k}. ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - SKU ${sku(i) || '-'} - vendidas na janela ${n0(i.vendas_janela)} - venda perdida em 2 semanas ${n0(i.perda14)}${i.novo && i.veioDaPre ? ' (estava em pre-ruptura)' : ''}`;
+const linhaPre = (i, k) => `${k}. ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - estoque ${n0(i.estoque)} - acaba em ${br(i.ruptura)} - venda prevista em 2 semanas ${n0(i.share * loja14)} - SKU ${sku(i) || '-'}`;
 const T = [];
-T.push(`Peças do site em ruptura e em pré-ruptura, com a venda fechada até ${br(ref)}.` + (temAnt ? ` [NOVO] = não estava na lista do envio anterior (${br(ant.referencia)}).` : ' Primeiro envio: a partir do próximo, os itens novos aparecem marcados.'));
-T.push('', `1. SEM ESTOQUE (${sem.length})`);
-for (const i of sem) T.push(`- ${i.novo ? '[NOVO] ' : ''}${nome(i)} - ${tam(i)} - SKU ${sku(i) || '-'} - venda perdida em 2 semanas: ${n0(i.perda14)}`);
-T.push('', `2. PRÉ-RUPTURA, ACABAM ATÉ ${br(limite)} (${pre.length})`);
-for (const i of pre) T.push(`- ${i.novo ? '[NOVO] ' : ''}${nome(i)} - ${tam(i)} - SKU ${sku(i) || '-'} - estoque ${n0(i.estoque)} - acaba em ${br(i.ruptura)}`);
-if (temAnt && repostos.length) T.push('', `Saíram da lista de sem estoque: ${repostos.join('; ')}`);
+T.push('Bom dia!', '');
+T.push(`Ruptura de estoque do site - venda fechada ate ${br(ref)}.`);
+T.push(temAnt ? `[NOVO] = nao estava na lista do envio anterior (${br(ant.referencia)}).` : 'Primeiro envio: a partir do proximo, os itens novos da semana aparecem marcados com [NOVO].');
+T.push('', 'RESUMO', `- Sem estoque: ${sem.length}${temAnt ? ` (${novosSem} novos)` : ''}`, `- Acabam ate ${br(limite)}: ${pre.length}${temAnt ? ` (${novosPre} novos)` : ''}`);
+if (temAnt) T.push(`- Repostos desde o envio anterior: ${repostos.length}`);
+if (temAnt && novosSem + novosPre) {
+  T.push('', 'NOVOS NA LISTA DESTA SEMANA');
+  sem.filter((i) => i.novo).forEach((i, k) => T.push(linhaSem(i, k + 1).replace(/^\d+\. \[NOVO\] /, '- Sem estoque: ')));
+  pre.filter((i) => i.novo).forEach((i, k) => T.push(linhaPre(i, k + 1).replace(/^\d+\. \[NOVO\] /, '- Pre-ruptura: ')));
+}
+T.push('', `SEM ESTOQUE (${sem.length})`);
+if (sem.length) sem.forEach((i, k) => T.push(linhaSem(i, k + 1))); else T.push('Nenhuma peca com venda esta sem estoque.');
+T.push('', `PRE-RUPTURA - ACABAM ATE ${br(limite)} (${pre.length})`);
+if (pre.length) pre.forEach((i, k) => T.push(linhaPre(i, k + 1))); else T.push('Nenhuma peca deve acabar nas proximas 2 semanas.');
+if (temAnt) { T.push('', `REPOSTOS - SAIRAM DA LISTA DE SEM ESTOQUE (${repostos.length})`); if (repostos.length) for (const k of repostos) T.push('- ' + k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').replace(' | ', ' - tam ')); else T.push('Nenhum.'); }
+T.push('', 'Como funciona - mesma previsao da aba Estoque do painel: participacao de cada peca nas vendas dos 2 ultimos meses fechados + mes atual, sobre a previsao de vendas da loja dia a dia. Pre-ruptura = estoque acaba nas proximas 2 semanas. Kits com 6 e 12 canetinhas contam como a mesma peca. Ficam fora os mesmos produtos que a aba Estoque tira do risco de ruptura (Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calcas, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons) e embalagens. So vendas do site.');
+const assuntoTxt = ascii(`Ruptura de estoque - semana ${br(ref)} - ${sem.length} sem estoque, ${pre.length} acabam em 2 semanas` + (temAnt ? ` - ${novosSem + novosPre} novos` : ''));
 
 await mkdir(saida, { recursive: true });
-await writeFile(path.join(saida, 'assunto.txt'), assunto);
+await writeFile(path.join(saida, 'assunto.txt'), assuntoTxt);
 await writeFile(path.join(saida, 'email.html'), H.join('\n'));
-await writeFile(path.join(saida, 'email.txt'), T.join('\n'));
+await writeFile(path.join(saida, 'email.txt'), T.map(ascii).join('\n'));
 await writeFile(path.join(saida, 'estado.json'), JSON.stringify({ referencia: ref, ruptura: sem.map(chave), pre: pre.map(chave) }));
 console.log(`ok: ${sem.length} sem estoque (${novosSem} novos), ${pre.length} em pré-ruptura (${novosPre} novos), ${repostos.length} repostos`);
