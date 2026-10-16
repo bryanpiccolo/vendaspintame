@@ -97,7 +97,7 @@ async function le(nome, consultaEsperada) {
 }
 
 const VENDAS = ['orders', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit'];
-const somaPor = (rows, chave) => {
+export const somaPor = (rows, chave) => {
   const m = new Map();
   for (const r of rows) {
     const k = chave(r);
@@ -109,7 +109,7 @@ const somaPor = (rows, chave) => {
   return [...m.values()];
 };
 
-function compacta(rows, campos) {
+export function compacta(rows, campos) {
   const dic = [], idx = new Map();
   const id = (s) => { s = String(s ?? ''); if (!idx.has(s)) { idx.set(s, dic.length); dic.push(s); } return idx.get(s); };
   const texto = new Set(['month', 'product_type', 'product_title', 'product_variant_title', 'product_variant_sku']);
