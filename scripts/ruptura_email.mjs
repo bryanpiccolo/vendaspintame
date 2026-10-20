@@ -97,8 +97,8 @@ H.push(`<p style="font-size:11px;color:#777;margin-top:22px">Mesma previsão da 
 // Texto simples e sem acento, no mesmo formato do Calendário e do alerta de prazos: é o que chega no comercial@.
 const ascii = (x) => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E\n]/g, '').replace(/ +/g, ' ').trim();
 const marca46 = (i) => (/^0?[46]$/.test(String(i.tamanho || '').trim()) ? '[04/06] ' : '');
-const linhaSem = (i, k) => `${k}. ${marca46(i)}${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - SKU ${sku(i) || '-'} - vendidas na janela ${n0(i.vendas_janela)} - venda perdida em 2 semanas ${n0(i.perda14)}${i.novo && i.veioDaPre ? ' (estava em pre-ruptura)' : ''}`;
-const linhaPre = (i, k) => `${k}. ${marca46(i)}${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - estoque ${n0(i.estoque)} - acaba em ${br(i.ruptura)} - venda prevista em 2 semanas ${n0(i.share * loja14)} - SKU ${sku(i) || '-'}`;
+const linhaSem = (i, k) => `${k}. ${marca46(i)}${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)}${i.novo && i.veioDaPre ? ' (estava em pre-ruptura)' : ''}`;
+const linhaPre = (i, k) => `${k}. ${marca46(i)}${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - restam ${n0(i.estoque)} - acaba por volta de ${br(i.ruptura)}`;
 const T = [];
 T.push('Bom dia!', '');
 T.push(`Ruptura de estoque do site - venda fechada ate ${br(ref)}.`);
@@ -110,21 +110,21 @@ const sem46 = sem.filter(t46), pre46 = pre.filter(t46);
 T.push(`- Nos tamanhos 04 e 06: ${sem46.length} sem estoque e ${pre46.length} acabando`);
 T.push('', `>>> DESTAQUE: TAMANHOS 04 E 06 (os que mais vendem) - ${sem46.length + pre46.length} pecas <<<`);
 if (sem46.length + pre46.length) {
-  sem46.forEach((i) => T.push(`- SEM ESTOQUE: ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - venda perdida em 2 semanas ${n0(i.perda14)} - SKU ${sku(i) || '-'}`));
-  pre46.forEach((i) => T.push(`- ACABA EM ${br(i.ruptura)}: ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - estoque ${n0(i.estoque)} - SKU ${sku(i) || '-'}`));
+  sem46.forEach((i) => T.push(`- SEM ESTOQUE: ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)}`));
+  pre46.forEach((i) => T.push(`- ACABA POR VOLTA DE ${br(i.ruptura)}: ${i.novo ? '[NOVO] ' : ''}${nome(i)} - tam ${tam(i)} - restam ${n0(i.estoque)}`));
 } else T.push('Nenhuma peca nos tamanhos 04 e 06 sem estoque ou acabando nas proximas 2 semanas.');
 if (temAnt) T.push(`- Repostos desde o envio anterior: ${repostos.length}`);
 if (temAnt && novosSem + novosPre) {
   T.push('', 'NOVOS NA LISTA DESTA SEMANA');
-  sem.filter((i) => i.novo).forEach((i, k) => T.push(linhaSem(i, k + 1).replace(/^\d+\. \[NOVO\] /, '- Sem estoque: ')));
-  pre.filter((i) => i.novo).forEach((i, k) => T.push(linhaPre(i, k + 1).replace(/^\d+\. \[NOVO\] /, '- Pre-ruptura: ')));
+  sem.filter((i) => i.novo).forEach((i) => T.push(`- Sem estoque: ${marca46(i)}${nome(i)} - tam ${tam(i)}${i.veioDaPre ? ' (estava em pre-ruptura)' : ''}`));
+  pre.filter((i) => i.novo).forEach((i) => T.push(`- Pre-ruptura: ${marca46(i)}${nome(i)} - tam ${tam(i)} - restam ${n0(i.estoque)} - acaba por volta de ${br(i.ruptura)}`));
 }
-T.push('', `SEM ESTOQUE (${sem.length})`);
+T.push('', `SEM ESTOQUE (${sem.length}) - do que mais vende para o que menos vende`);
 if (sem.length) sem.forEach((i, k) => T.push(linhaSem(i, k + 1))); else T.push('Nenhuma peca com venda esta sem estoque.');
-T.push('', `PRE-RUPTURA - ACABAM ATE ${br(limite)} (${pre.length})`);
+T.push('', `PRE-RUPTURA - ACABAM ATE ${br(limite)} (${pre.length}) - do que acaba primeiro para o que acaba depois`);
 if (pre.length) pre.forEach((i, k) => T.push(linhaPre(i, k + 1))); else T.push('Nenhuma peca deve acabar nas proximas 2 semanas.');
-if (temAnt) { T.push('', `REPOSTOS - SAIRAM DA LISTA DE SEM ESTOQUE (${repostos.length})`); if (repostos.length) for (const k of repostos) T.push('- ' + k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').replace(' | ', ' - tam ')); else T.push('Nenhum.'); }
-T.push('', 'Como funciona - mesma previsao da aba Estoque do painel: participacao de cada peca nas vendas dos 2 ultimos meses fechados + mes atual, sobre a previsao de vendas da loja dia a dia. Pre-ruptura = estoque acaba nas proximas 2 semanas. [04/06] = tamanhos 04 e 06, os que mais vendem. Kits com 6 e 12 canetinhas contam como a mesma peca. Ficam fora os mesmos produtos que a aba Estoque tira do risco de ruptura (Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calcas, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons) e embalagens. So vendas do site.');
+if (temAnt) { T.push('', `REPOSTOS - SAIRAM DA LISTA DE SEM ESTOQUE (${repostos.length})`); if (repostos.length) for (const k of repostos) T.push('- ' + k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').replace(/ \| Default Title$/, '').replace(' | ', ' - tam ')); else T.push('Nenhum.'); }
+T.push('', 'Como funciona - Sem estoque = peca que vende e esta com estoque zerado no site. Pre-ruptura = peca que, no ritmo de venda atual, acaba nas proximas 2 semanas (a data e uma estimativa, pela mesma previsao da aba Estoque do painel). [04/06] = tamanhos 04 e 06, os que mais vendem. Kits com 6 e 12 canetinhas contam como a mesma peca. So produtos ativos no site. Ficam fora Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calcas, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons e embalagens.');
 const assuntoTxt = ascii(`Ruptura de estoque - semana ${br(ref)} - ${sem.length} sem estoque, ${pre.length} acabam em 2 semanas - ${sem.filter(t46).length + pre.filter(t46).length} nos tam 04 e 06` + (temAnt ? ` - ${novosSem + novosPre} novos` : ''));
 
 await mkdir(saida, { recursive: true });
