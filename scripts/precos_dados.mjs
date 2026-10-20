@@ -4,6 +4,7 @@
 // Uso:
 //   node scripts/precos_dados.mjs --consulta
 //       imprime a consulta GraphQL (ferramenta graphql_query do Shopify, first 50, paginando com after)
+//   node scripts/precos_dados.mjs --artefato <precos.json> <saída.json>   (arquivo do dataset "precificacao" do painel do Claude)
 //   node scripts/precos_dados.mjs <pasta-das-paginas> <pasta-do-banco> <saída.json>
 //       <pasta-das-paginas>: as respostas do graphql_query (uma por arquivo .json/.txt, {data:{products:{nodes}}})
 //       <pasta-do-banco>: a leitura do banco do Controle de Precificação com out_dir (subpastas config/, listings/,
@@ -14,6 +15,8 @@ import path from 'node:path';
 export const CONSULTA = 'query P($first:Int!, $after:String){ products(first:$first, after:$after, query:"status:active"){ pageInfo{hasNextPage endCursor} nodes{ title productType variants(first:100){ nodes{ sku title price inventoryItem{ unitCost{ amount } measurement{ weight{ value unit } } } } } } } }';
 
 if (process.argv[2] === '--consulta') { console.log(CONSULTA); process.exit(0); }
+// --artefato <precos.json> <saída>: o mesmo conteúdo no formato do arquivo do painel do Claude (uma linha {j: JSON})
+if (process.argv[2] === '--artefato') { const t = readFileSync(process.argv[3], 'utf8'); JSON.parse(t); writeFileSync(process.argv[4], JSON.stringify([{ j: t }])); console.log('ok'); process.exit(0); }
 const [, , pastaPag, pastaDb, saida] = process.argv;
 if (!pastaPag || !pastaDb || !saida) { console.error('Uso: node scripts/precos_dados.mjs <pasta-das-paginas> <pasta-do-banco> <saída.json>'); process.exit(1); }
 

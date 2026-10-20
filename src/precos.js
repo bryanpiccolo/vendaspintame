@@ -368,7 +368,7 @@
   const marca = (id, attr, v) => document.querySelectorAll('#' + id + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === v)));
   function desenha() {
     const a = aba(); if (!a || a.hidden) return;
-    if (!X) { document.getElementById('pc-janela').textContent = 'Carregando os preços…'; return; }
+    if (!X) { document.getElementById('pc-janela').textContent = 'Preços ainda não carregados. Eles são atualizados todo dia por volta das 7h.'; return; }
     monta(); categorias(); janela();
     marca('pc-seg-filtro', 'f', st.f); marca('pc-seg-canal', 'c', st.c);
     const { list, base } = filtrados();
