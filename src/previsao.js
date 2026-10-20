@@ -170,11 +170,28 @@
     return [...acc.values()];
   }
 
+  // Peça ativa: o título é de um produto ativo e algum SKU dela está num produto ativo (um rascunho pode ter o mesmo
+  // título ou o mesmo SKU de um ativo). Sem SKU no estoque, vale só o título. Sem lista, todas valem.
+  const plano = (s) => String(s || '').toUpperCase().replace(/[\s\-_.\/]/g, '');
+  let cacheAtivos = null;
+  function ativo(A, i) {
+    if (!A || !A.skus || !A.skus.length) return true;
+    if (!cacheAtivos || cacheAtivos.A !== A) cacheAtivos = { A, skus: new Set(A.skus.map(plano)), titulos: new Set((A.titulos || []).map(nomeLimpo)) };
+    const skus = (i.skus || []).map(plano).filter(Boolean);
+    if (cacheAtivos.titulos.size && !cacheAtivos.titulos.has(i.produto)) return false;
+    return !skus.length || skus.some((s) => cacheAtivos.skus.has(s));
+  }
+  // Lista de ativos a partir dos produtos do arquivo de preços (scripts/precos_dados.mjs): [{t, v: [[sku, ...]]}].
+  function ativosDe(produtos) {
+    if (!Array.isArray(produtos) || !produtos.length) return null;
+    return { skus: produtos.flatMap((p) => (p.v || []).map((v) => v[0]).filter(Boolean)), titulos: produtos.map((p) => p.t) };
+  }
+
   // Projeta a demanda dia a dia a partir de amanhã para cada peça e calcula ruptura e compra.
   function calcula(D, opcoes) {
     const prazo = opcoes.prazo ?? 22, cobertura = opcoes.cobertura ?? 60;
     const L = loja(D, 'pecas'), G = loja(D, 'gmv');
-    const itens = pecas(D);
+    let itens = pecas(D);
     const totalJanela = itens.reduce((a, b) => a + Math.max(0, b.vendas_janela), 0) || 1;
     // demanda da loja por dia, de amanhã em diante (resto do mês + 6 meses)
     const dias = [];
@@ -204,9 +221,12 @@
       it.necessidade = demCob * it.fator;
       it.comprar = Math.max(0, Math.ceil(it.necessidade - it.sobra_chegada));
     }
+    // Só produtos ativos no Shopify (sem rascunhos e arquivados), quando a lista de ativos veio junto (D.ativos).
+    // A participação de cada peça é calculada antes, com todas, para não inflar a previsão das que ficam.
+    itens = itens.filter((i) => ativo(D.ativos, i));
     return { loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
-  raiz.Previsao = { REGRAS, calcula, loja, pecas, addMes, diasNoMes, addDias };
+  raiz.Previsao = { REGRAS, calcula, ativosDe, loja, pecas, addMes, diasNoMes, addDias };
   if (typeof module !== 'undefined') module.exports = raiz.Previsao;
 })(typeof window !== 'undefined' ? window : globalThis);

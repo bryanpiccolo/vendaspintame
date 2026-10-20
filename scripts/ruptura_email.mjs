@@ -38,7 +38,10 @@ const D = {
   diario_total: B.somaPor(R.diario, dia).map(({ _k, ...v }) => ({ day: _k, ...v })).sort((a, b) => (a.day < b.day ? -1 : 1)),
   produtos: B.compacta([...R.produtos_hist, ...R.produtos_rec], P),
   estoque_ontem: R.estoque_ontem.map((r) => ({ month: ref, ...r })), // sem compactar: mantém o SKU das variantes zeradas
+  // só produtos ativos no Shopify: lista em <pasta>/precos.json (scripts/precos_dados.mjs); sem ela, entram todos
+  ativos: existsSync(path.join(pasta, 'precos.json')) ? Previsao.ativosDe(JSON.parse(await readFile(path.join(pasta, 'precos.json'), 'utf8')).produtos) : null,
 };
+if (!D.ativos) console.error('Aviso: sem precos.json na pasta; rascunhos e arquivados entram na lista.');
 const res = Previsao.calcula(D, { prazo: 22, cobertura: 60 });
 const limite = Previsao.addDias(ref, DIAS_PRE);
 const itens = res.itens.filter((i) => i.share > 0 && !FORA.some((re) => re.test(i.produto) || re.test(i.categoria)));

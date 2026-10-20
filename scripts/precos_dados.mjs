@@ -7,7 +7,7 @@
 //   node scripts/precos_dados.mjs --artefato <precos.json> <saída.json>   (arquivo do dataset "precificacao" do painel do Claude)
 //   node scripts/precos_dados.mjs <pasta-das-paginas> <pasta-do-banco> <saída.json>
 //       <pasta-das-paginas>: as respostas do graphql_query (uma por arquivo .json/.txt, {data:{products:{nodes}}})
-//       <pasta-do-banco>: a leitura do banco do Controle de Precificação com out_dir (subpastas config/, listings/,
+//       <pasta-do-banco>: "-" para gravar só os produtos ativos; ou a leitura do banco do Controle de Precificação com out_dir (subpastas config/, listings/,
 //                         costs/, shipping/, links/, sales/ com um .json por documento)
 import { readFileSync, readdirSync, existsSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -49,6 +49,8 @@ for (const f of arqs) {
 // 2. banco do Controle de Precificação
 const doc = (col, id) => { const p = path.join(pastaDb, col, id + '.json'); if (!existsSync(p)) return null; const d = JSON.parse(readFileSync(p, 'utf8')); return d && d.data && !d.items && !d.rules ? d.data : d; };
 const col = (c) => { const p = path.join(pastaDb, c); if (!existsSync(p) || !statSync(p).isDirectory()) return {}; return Object.fromEntries(readdirSync(p).filter((f) => f.endsWith('.json')).map((f) => [f.slice(0, -5), doc(c, f.slice(0, -5))])); };
+// "-" no lugar da pasta do banco: só a lista de produtos ativos (usada pelo e-mail de ruptura)
+if (pastaDb === '-') { writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), produtos })); console.log(`ok: ${produtos.length} produtos ativos`); process.exit(0); }
 const rules = doc('config', 'rules');
 if (!rules || !rules.rules) throw new Error('config/rules não encontrado em ' + pastaDb);
 const enxuga = (L) => L && { items: L.items || {}, importedAt: L.importedAt || null, fileName: L.fileName || null };

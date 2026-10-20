@@ -9,8 +9,13 @@
     const falha = ds.findIndex((d) => d.status === 'error');
     if (falha >= 0) { if (tb) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.className = 'pm-txt pm-bad'; td.textContent = 'Não foi possível carregar os dados do Shopify (' + ids[falha] + '). Tente atualizar a página.'; tr.appendChild(td); tb.replaceChildren(tr); } return; }
     if (!ds.every((d) => d.status === 'ok')) return;
+    // lista de produtos ativos (arquivo de preços): espera enquanto carrega; se falhar, segue com todos
+    const pr = dash.data('precificacao');
+    if (pr.status === 'loading') return;
+    let ativos = null;
+    if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ativos = t ? window.Previsao.ativosDe(JSON.parse(t).produtos) : null; } catch (e) { ativos = null; } }
     const [mensal, diario, pecas, est] = ds.map((d) => linhas(d.data));
-    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : ''].join('|');
+    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0].join('|');
     if (nova === chave) return;
     const dias = diario.map((r) => ({ day: String(r.day).slice(0, 10), net_items_sold: r.net_items_sold || 0, gross_sales: r.gross_sales || 0, discounts: r.discounts || 0, shipping_charges: r.shipping_charges || 0 }))
       .sort((a, b) => (a.day < b.day ? -1 : 1));
@@ -27,6 +32,7 @@
       diario_total: dias,
       produtos: pecas.map((r) => ({ ...r, month: String(r.month).slice(0, 7) })),
       estoque_ontem: est,
+      ativos,
     });
   };
 })();
