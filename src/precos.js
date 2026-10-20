@@ -184,7 +184,7 @@
     const its = [...m.values()];
     if (!its.length) return null;
     const est = its.reduce((a, i) => a + Math.max(0, i.estoque), 0);
-    const dia = its.reduce((a, i) => a + i.share * E.d30, 0);
+    const dia = its.reduce((a, i) => a + (i.diaria30 || 0), 0);
     const comVenda = its.filter((i) => i.share > 0);
     const zerados = comVenda.filter((i) => i.estoque <= 0);
     const menor = comVenda.filter((i) => i.estoque > 0 && i.cobertura_dias != null).sort((a, b) => a.cobertura_dias - b.cobertura_dias)[0] || null;
@@ -333,7 +333,7 @@
     else {
       const E = r.E, d30 = M.E.d30;
       const tb = h('tbody', {}, E.its.map((i) => {
-        const dia = i.share * d30;
+        const dia = i.diaria30 || 0;
         const rup = i.estoque <= 0 && i.share > 0 ? 'sem estoque' : i.ruptura ? dataBR(i.ruptura) : dia > 0 ? '—' : 'sem venda';
         return h('tr', {}, h('td', { text: tamTxt(i) }), h('td', { text: INT.format(Math.max(0, i.estoque)) }), h('td', { text: dia > 0 ? dia.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '0' }),
           h('td', { class: corCob(i.cobertura_dias), text: i.estoque <= 0 ? '—' : fmtCob(i.cobertura_dias) || 'sem venda' }), h('td', { class: i.estoque <= 0 && i.share > 0 ? 'bad' : '', text: rup }));

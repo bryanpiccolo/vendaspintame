@@ -23,6 +23,7 @@ export const ref = process.env.REF_DATE || addDias(hojeSP(), -1);
 const Y = +ref.slice(0, 4);
 const refLY = ref.slice(5) === '02-29' ? `${Y - 1}-02-28` : (Y - 1) + ref.slice(4); // mesmo dia, um ano antes
 const inicioMesLY = refLY.slice(0, 8) + '01';
+const inicioJanela = (() => { let y = Y, m = +ref.slice(5, 7) - 2; if (m < 1) { m += 12; y--; } return `${y}-${String(m).padStart(2, '0')}-01`; })();
 
 const M_VENDAS = 'orders, net_items_sold, gross_sales, discounts, sales_reversals, net_sales, shipping_charges, cost_of_goods_sold, gross_profit';
 const M_PROD = 'net_items_sold, gross_sales, discounts, sales_reversals, net_sales, shipping_charges, cost_of_goods_sold, gross_profit';
@@ -67,6 +68,8 @@ export function consultas() {
     produtos_rec: `FROM sales SHOW ${M_PROD} GROUP BY month, ${DIM} SINCE ${Y - 1}-01-01 UNTIL ${ref} ORDER BY month ASC ${L}`,
     produtos_dia: `FROM sales SHOW ${M_PROD} GROUP BY day, ${DIM} SINCE ${addDias(ref, -29)} UNTIL ${ref} ORDER BY day ASC ${L}`,
     estoque_ontem: `FROM inventory SHOW ${M_EST} GROUP BY ${DIM}, product_variant_sku SINCE ${ref} UNTIL ${ref} ORDER BY inventory_units_sold DESC ${L}`,
+    // dias sem estoque de cada variante nos meses da janela da previsão (2 meses fechados + o atual)
+    dias_sem_estoque: `FROM inventory SHOW days_out_of_stock GROUP BY month, product_title, product_variant_title SINCE ${inicioJanela} UNTIL ${ref} ORDER BY month ASC ${L}`,
     estoque_2023_2024: `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE 2023-01-01 UNTIL 2024-12-31 ORDER BY month ASC ${L}`,
   };
   for (let y = 2025; y <= Y; y++) q[`estoque_${y}`] = `FROM inventory SHOW ${M_EST} GROUP BY month, ${DIM} SINCE ${y}-01-01 UNTIL ${y === Y ? ref : y + '-12-31'} ORDER BY month ASC ${L}`;
@@ -158,6 +161,7 @@ async function main() {
     produtos_ontem: compacta(prodOntem, P),
     estoque: compacta(estoques, E),
     estoque_ontem: compacta(R.estoque_ontem.map((r) => ({ month: ref, ...r })), EO),
+    dias_sem_estoque: compacta(R.dias_sem_estoque, ['month', 'product_title', 'product_variant_title', 'days_out_of_stock']),
     // aba Precificação: arquivo gerado por scripts/precos_dados.mjs (opcional; sem ele a aba avisa que não há preços)
     precos: existsSync(path.join(process.env.DADOS_DIR, 'precos.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'precos.json'), 'utf8')) : null,
     promo: (() => { const p = promoDados(R); return { ...p, produtos: compacta(p.produtos, ['day', 'product_type', 'product_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit']) }; })(),

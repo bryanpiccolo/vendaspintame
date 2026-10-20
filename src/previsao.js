@@ -12,8 +12,17 @@
 // 4. Mês corrente: curva diária do mesmo mês do ano passado (datas como Dia das Crianças e Black Friday).
 //    O fechamento junta o ritmo do mês (vendido até ontem ÷ parte que costuma estar vendida) com a regra 1,
 //    dando mais peso ao ritmo conforme o mês avança. Os dias seguintes seguem a mesma curva.
-// 5. Produto/tamanho: participação de cada peça nas vendas dos 2 últimos meses fechados + mês atual.
+// 5. Produto/tamanho: participação de cada peça nas vendas dos 2 últimos meses fechados + mês atual, com dois
+//    ajustes para o que saiu da curva normal da peça:
+//    - ruptura: cada mês conta só os dias em que a peça tinha estoque (venda por dia disponível ÷ venda por dia
+//      da loja), para a falta de estoque não derrubar a previsão;
+//    - pico de promoção: o mês em que a peça vendeu mais de REGRAS.tetoPico × o normal dela nos outros meses
+//      (sempre em relação à loja) fica limitado a esse teto.
 //    Variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça física.
+//    Ousadia: a venda prevista de cada peça é REGRAS.ousadia acima da projeção, para ter estoque para crescer.
+// 4b. A curva diária do ano passado é suavizada: dias fora das datas fixas (Dia das Crianças, Black Friday e Natal)
+//    que venderam mais que REGRAS.curva.alto × ou menos que REGRAS.curva.baixo × a mediana dos dias em volta
+//    ficam no limite.
 // 6. Ruptura: dia em que a venda prevista acumulada passa o estoque de hoje.
 // 7. A compra chega depois do prazo de reposição. Comprar = venda prevista nos dias de cobertura depois da
 //    chegada × fator de sell-through − estoque que ainda sobra no dia da chegada.
@@ -49,7 +58,27 @@
     return tipo ? String(tipo).trim() : 'Sem categoria';
   };
 
-  const REGRAS = { mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]], variacaoFixa: { '2026-11': -0.40, '2026-12': -0.35 } };
+  const REGRAS = {
+    mesesBase: 2, fatorST: [[0.75, 1.3], [0.5, 1.15]], variacaoFixa: { '2026-11': -0.40, '2026-12': -0.35 },
+    ousadia: 0.10, // venda prevista por peça 10% acima da projeção
+    tetoPico: 1.5, minDiasDisp: 7, // pico de promoção por peça; dias mínimos com estoque para o mês contar
+    curva: { alto: 2, baixo: 0.5, raio: 7, datasFixas: [['09-25', '10-12'], ['11-20', '12-31']] },
+  };
+  // Suaviza a curva diária: fora das datas fixas, cada dia fica entre baixo × e alto × a mediana dos dias em volta.
+  function suavizaCurva(porDia) {
+    const C = REGRAS.curva, dias = [...porDia.keys()].sort(), out = new Map(porDia), ajustados = [];
+    const fixo = (k) => C.datasFixas.some(([a, b]) => k.slice(5) >= a && k.slice(5) <= b);
+    dias.forEach((k, i) => {
+      if (fixo(k)) return;
+      const viz = []; for (let j = Math.max(0, i - C.raio); j <= Math.min(dias.length - 1, i + C.raio); j++) if (j !== i) viz.push(porDia.get(dias[j]));
+      if (viz.length < C.raio) return;
+      viz.sort((a, b) => a - b); const med = viz[Math.floor(viz.length / 2)];
+      if (!(med > 0)) return;
+      const v = porDia.get(k), nv = Math.min(C.alto * med, Math.max(C.baixo * med, v));
+      if (nv !== v) { out.set(k, nv); ajustados.push({ dia: k, antes: v, depois: nv }); }
+    });
+    return { mapa: out, ajustados };
+  }
 
   function loja(D, metrica) {
     const val = (r) => metrica === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0);
@@ -106,7 +135,8 @@
       const ly = x(addMes(m, -12)); variacoes.set(m, ly > 0 ? v / ly - 1 : null);
     }
     // 4. curva diária do mesmo mês do ano passado
-    const porDia = new Map(D.diario_total.map((r) => [String(r.day).slice(0, 10), val(r)]));
+    const suave = suavizaCurva(new Map(D.diario_total.map((r) => [String(r.day).slice(0, 10), val(r)])));
+    const porDia = suave.mapa;
     const pesosDia = (m) => {
       const nd = diasNoMes(m), ly = addMes(m, -12), ndl = diasNoMes(ly), v = [];
       let ok = true;
@@ -132,8 +162,9 @@
     for (let i = 1; i <= 6; i++) { const m = addMes(mesRef, i); futuros.push({ mes: m, valor: prev.get(m), variacao: variacoes.get(m), pesos: pesosDia(m) }); }
     return {
       mtd, parcela: c, ritmo, sazonal, fechamento, restante, diasRestantes, futuros, mesRef, ultFechado,
-      base, varBase, variacaoMesAtual: variacao(mesRef), jan, viradas, relJan, relacoes, fixos, variacoes,
+      base, varBase, variacaoMesAtual: variacao(mesRef), jan, viradas, relJan, relacoes, fixos, variacoes, curvaAjustada: suave.ajustados,
       historico: meses.map((m) => ({ mes: m, valor: x(m) })),
+      porMesJanela: Object.fromEntries([0, ...Array.from({ length: REGRAS.mesesBase }, (_, i) => i + 1)].map((i) => [addMes(mesRef, -i), x(addMes(mesRef, -i))])),
     };
   }
 
@@ -145,7 +176,7 @@
     const acc = new Map();
     const pega = (r) => {
       const k = chave(r); let a = acc.get(k);
-      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: categoriaDe(r.product_title, r.product_type), vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0, skus: [] }; acc.set(k, a); }
+      if (!a) { a = { id: k, produto: nomeLimpo(r.product_title), variante: fisico(r.product_variant_title), tamanho: tamanho(fisico(r.product_variant_title)), estampa: estampa(r.product_title), categoria: categoriaDe(r.product_title, r.product_type), vendas_janela: 0, vendas_janela_fechada: 0, vendas_mes: 0, vendas_12m: 0, estoque: 0, skus: [], porMes: {}, semEstoque: {} }; acc.set(k, a); }
       if (a.categoria === 'Sem categoria' && r.product_type) a.categoria = categoriaDe(r.product_title, r.product_type);
       return a;
     };
@@ -156,7 +187,7 @@
       if (m < ini12) continue;
       const a = pega(r);
       a.vendas_12m += u;
-      if (janela.has(m)) a.vendas_janela += u;
+      if (janela.has(m)) { a.vendas_janela += u; a.porMes[m] = (a.porMes[m] || 0) + u; }
       if (m === mesRef) a.vendas_mes += u;
       else if (janela.has(m)) a.vendas_janela_fechada += u;
     }
@@ -167,7 +198,41 @@
       const sku = String(r.product_variant_sku || '').trim();
       if (sku && !a.skus.includes(sku)) a.skus.push(sku);
     }
+    // dias sem estoque por mês (D.dias_sem_estoque): a peça física está disponível se alguma variante dela estava
+    if (D.dias_sem_estoque) {
+      for (const r of abre(D.dias_sem_estoque)) {
+        if (!r.product_title) continue;
+        const m = String(r.month).slice(0, 7); if (!janela.has(m)) continue;
+        const a = acc.get(chave(r)); if (!a) continue;
+        const d = Math.max(0, Number(r.days_out_of_stock) || 0);
+        a.semEstoque[m] = m in a.semEstoque ? Math.min(a.semEstoque[m], d) : d;
+      }
+    }
     return [...acc.values()];
+  }
+
+  // Participação da peça com ajuste de ruptura e de pico (regra 5). lojaMes: peças vendidas pela loja em cada mês.
+  function shareAjustada(it, lojaMes, ref, temDisp) {
+    const mesRef = ref.slice(0, 7), M = [];
+    for (const m of Object.keys(lojaMes)) {
+      const dias = m === mesRef ? +ref.slice(8, 10) : diasNoMes(m), loj = lojaMes[m];
+      if (!(loj > 0)) continue;
+      const v = Math.max(0, it.porMes[m] || 0);
+      // vendeu no mês "todo sem estoque": a loja vende mesmo zerado (estoque negativo), então os dias não valem
+      let fora = temDisp ? Math.min(dias, it.semEstoque[m] || 0) : 0; if (fora >= dias && v > 0) fora = 0;
+      const disp = dias - fora;
+      if (disp < Math.min(REGRAS.minDiasDisp, dias)) continue; // quase o mês todo sem estoque: o mês não diz nada
+      const s0 = (v / disp) / (loj / dias); M.push({ m, disp, s: s0, s0, fora });
+    }
+    if (!M.length) return null;
+    let pico = false;
+    if (M.length >= 2) for (const x of M) {
+      const outros = M.filter((y) => y !== x).map((y) => y.s0).sort((a, b) => a - b), n = outros.length;
+      const med = n % 2 ? outros[(n - 1) / 2] : (outros[n / 2 - 1] + outros[n / 2]) / 2;
+      if (med > 0 && x.s > REGRAS.tetoPico * med) { x.s = REGRAS.tetoPico * med; pico = true; }
+    }
+    const pd = M.reduce((a, x) => a + x.disp, 0);
+    return { share: M.reduce((a, x) => a + x.s * x.disp, 0) / pd, pico, ruptura: M.some((x) => x.fora > 0) };
   }
 
   // Peça ativa: o título é de um produto ativo e algum SKU dela está num produto ativo (um rascunho pode ter o mesmo
@@ -193,6 +258,9 @@
     const L = loja(D, 'pecas'), G = loja(D, 'gmv');
     let itens = pecas(D);
     const totalJanela = itens.reduce((a, b) => a + Math.max(0, b.vendas_janela), 0) || 1;
+    // peças vendidas pela loja em cada mês da janela (fechados pelo total mensal, o atual até ontem)
+    const lojaMes = {}; for (const m of Object.keys(L.porMesJanela || {})) lojaMes[m] = L.porMesJanela[m];
+    const temDisp = !!D.dias_sem_estoque, mult = 1 + REGRAS.ousadia;
     // demanda da loja por dia, de amanhã em diante (resto do mês + 6 meses)
     const dias = [];
     for (const d of L.diasRestantes) dias.push({ dia: d.dia, valor: d.valor });
@@ -206,14 +274,17 @@
     const cortes = REGRAS.fatorST.map(([q, f]) => [quantil(q), f]);
     for (const it of itens) it.fator = it.sell_through == null ? 1 : (cortes.find(([c]) => it.sell_through >= c) || [0, 1])[1];
     for (const it of itens) {
-      const share = Math.max(0, it.vendas_janela) / totalJanela;
-      it.share = share;
-      it.prev_resto_mes = share * L.restante;
-      it.prev_meses = Object.fromEntries(L.futuros.map((f) => [f.mes, share * f.valor]));
+      it.share_bruta = Math.max(0, it.vendas_janela) / totalJanela;
+      const aj = it.vendas_janela > 0 ? shareAjustada(it, lojaMes, D.referencia, temDisp) : null;
+      const share = aj ? aj.share : it.share_bruta;
+      it.share = share; it.ajuste_pico = !!(aj && aj.pico); it.ajuste_ruptura = !!(aj && aj.ruptura);
+      it.prev_resto_mes = share * L.restante * mult;
+      it.prev_meses = Object.fromEntries(L.futuros.map((f) => [f.mes, share * f.valor * mult]));
       let acc = 0, ruptura = null, demHoriz = 0, demPrazo = 0, demCob = 0;
-      dias.forEach((d, i) => { const q = share * d.valor; acc += q; if (ruptura == null && acc > it.estoque) ruptura = d.dia; if (i < horizonte) demHoriz += q; if (i < prazo) demPrazo += q; else if (i < horizonte) demCob += q; });
+      dias.forEach((d, i) => { const q = share * d.valor * mult; acc += q; if (ruptura == null && acc > it.estoque) ruptura = d.dia; if (i < horizonte) demHoriz += q; if (i < prazo) demPrazo += q; else if (i < horizonte) demCob += q; });
       it.ruptura = it.estoque <= 0 && share > 0 ? 'agora' : ruptura;
-      const diaria30 = dias.slice(0, 30).reduce((a, d) => a + share * d.valor, 0) / 30;
+      const diaria30 = dias.slice(0, 30).reduce((a, d) => a + share * d.valor * mult, 0) / 30;
+      it.diaria30 = diaria30;
       it.cobertura_dias = diaria30 > 0 ? it.estoque / diaria30 : null;
       it.demanda_horizonte = demHoriz;
       it.sobra_chegada = Math.max(0, it.estoque - demPrazo);

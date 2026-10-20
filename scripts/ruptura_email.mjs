@@ -13,7 +13,7 @@ const B = await import('./build.mjs');
 await import('../src/previsao.js'); // define globalThis.Previsao
 const Previsao = globalThis.Previsao;
 
-const NOMES = ['estados', 'diario', 'produtos_hist', 'produtos_rec', 'estoque_ontem'];
+const NOMES = ['estados', 'diario', 'produtos_hist', 'produtos_rec', 'estoque_ontem', 'dias_sem_estoque'];
 const DIAS_PRE = 14; // pré-ruptura: acaba nos próximos 14 dias
 // Mesmos produtos que ficam fora do risco de ruptura na aba Estoque (src/estoque.js).
 const FORA = [/copa do mundo|futebol|⚽/i, /camiseta adulto/i, /camiseta bolso/i, /^kit de \d+ canetinhas/i, /scrunchie/i, /^cal[cç]a/i, /estojo|lancheira/i, /mochila/i, /bermuda|short/i, /casaco|blus[aã]o|moletom|jaqueta/i, /embalagem|envelope|sacola/i];
@@ -38,6 +38,7 @@ const D = {
   diario_total: B.somaPor(R.diario, dia).map(({ _k, ...v }) => ({ day: _k, ...v })).sort((a, b) => (a.day < b.day ? -1 : 1)),
   produtos: B.compacta([...R.produtos_hist, ...R.produtos_rec], P),
   estoque_ontem: R.estoque_ontem.map((r) => ({ month: ref, ...r })), // sem compactar: mantém o SKU das variantes zeradas
+  dias_sem_estoque: R.dias_sem_estoque,
   // só produtos ativos no Shopify: lista em <pasta>/precos.json (scripts/precos_dados.mjs); sem ela, entram todos
   ativos: existsSync(path.join(pasta, 'precos.json')) ? Previsao.ativosDe(JSON.parse(await readFile(path.join(pasta, 'precos.json'), 'utf8')).produtos) : null,
 };
