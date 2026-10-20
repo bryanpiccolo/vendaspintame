@@ -1,0 +1,70 @@
+<style>
+#aba-precos { --pc-site: #2f5bea; --pc-ml: #c99700; --pc-shopee: #e4572e; --pc-outro: #7a4fd6; }
+@media (prefers-color-scheme: dark) { #aba-precos { --pc-site: #6f8fff; --pc-ml: #f2c230; --pc-shopee: #ff7a52; --pc-outro: #a98af0; } }
+.pc-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .35rem; vertical-align: 0; }
+.pc-pill { display: inline-block; font-size: .72rem; padding: 0 .4rem; border-radius: 999px; font-weight: var(--cds-font-weight-medium); }
+.pc-pill.good { color: var(--color-ok); background: color-mix(in srgb, var(--color-ok) 13%, transparent); }
+.pc-pill.warn { color: var(--color-warn); background: color-mix(in srgb, var(--color-warn) 15%, transparent); }
+.pc-pill.bad { color: var(--color-bad); background: color-mix(in srgb, var(--color-bad) 13%, transparent); }
+.pc-tag { display: inline-block; font-size: .68rem; padding: 0 .35rem; border-radius: 4px; border: 1px dashed var(--color-warn); color: var(--color-warn); margin-left: .3rem; }
+.pc-sub { display: block; font-size: .7rem; color: var(--color-fg-muted); }
+.pc-sub.warn { color: var(--color-warn); } .pc-sub.bad { color: var(--color-bad); }
+.pc-cel { min-width: 7.5rem; }
+.pc-tbl td { vertical-align: top; }
+.pc-tbl td.pc-est { border-left: 1px solid var(--color-border-line); }
+.pc-tbl td.pc-cob { border-right: 1px solid var(--color-border-line); }
+.pc-tbl .pc-v { font-weight: var(--cds-font-weight-medium); }
+.pc-tbl .warn { color: var(--color-warn); } .pc-tbl .bad { color: var(--color-bad); } .pc-tbl .muted { color: var(--color-fg-muted); }
+.pc-det td { background: color-mix(in srgb, var(--color-fg) 3%, transparent); white-space: normal !important; text-align: left !important; }
+.pc-det-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-lg); padding: var(--cds-pad-sm) 0; }
+.pc-det-grid > div { min-width: 0; overflow-x: auto; }
+.pc-det h3 { font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-xs); }
+.pc-mini { width: 100%; border-collapse: collapse; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.pc-mini th, .pc-mini td { padding: 2px 6px; border-bottom: 1px solid var(--color-border-line); text-align: right; white-space: nowrap; background: none !important; }
+.pc-mini th { color: var(--color-fg-muted); font-weight: var(--cds-font-weight-medium); position: static; }
+.pc-mini th:first-child, .pc-mini td:first-child { text-align: left; }
+.pc-mini tr.pc-tot td { font-weight: var(--cds-font-weight-medium); border-top: 2px solid var(--color-border-line); }
+</style>
+  <div class="pm-tab" id="aba-precos" role="tabpanel" hidden data-source="precificacao">
+  <p class="pm-window" id="pc-janela"></p>
+
+  <section class="pm-cards" id="pc-cards"></section>
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2>Preço, margem, estoque e cobertura por produto</h2>
+        <p class="pm-note" id="pc-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <input class="pm-search" id="pc-busca" type="search" placeholder="Buscar produto ou SKU">
+      <div class="pm-seg" id="pc-seg-filtro" aria-label="Mostrar">
+        <button type="button" data-f="all">Todos</button>
+        <button type="button" data-f="below">Abaixo do alvo</button>
+        <button type="button" data-f="neg">Prejuízo</button>
+        <button type="button" data-f="cob">Cobertura até 30 dias</button>
+        <button type="button" data-f="parado">Mais de 6 meses de estoque</button>
+      </div>
+      <div class="pm-seg" id="pc-seg-canal" aria-label="Canal">
+        <button type="button" data-c="all">Todos os produtos</button>
+        <button type="button" data-c="mkt">No ML ou Shopee</button>
+        <button type="button" data-c="ml">Só ML</button>
+        <button type="button" data-c="shopee">Só Shopee</button>
+      </div>
+      <select class="pm-select" id="pc-cat" aria-label="Categoria"><option value="all">Todas as categorias</option></select>
+      <select class="pm-select" id="pc-ordem" aria-label="Ordenar">
+        <option value="minm">Menor margem primeiro</option>
+        <option value="cob">Menor cobertura primeiro</option>
+        <option value="est">Mais estoque a custo primeiro</option>
+        <option value="name">Nome A–Z</option>
+        <option value="spread">Maior diferença de preço entre canais</option>
+      </select>
+    </div>
+    <div class="pm-tablebox" style="max-height:none">
+      <table class="pm-table pc-tbl" id="pc-tabela"><thead></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <p class="pm-foot" id="pc-rodape"></p>
+  </div>

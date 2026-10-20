@@ -158,6 +158,8 @@ async function main() {
     produtos_ontem: compacta(prodOntem, P),
     estoque: compacta(estoques, E),
     estoque_ontem: compacta(R.estoque_ontem.map((r) => ({ month: ref, ...r })), EO),
+    // aba Precificação: arquivo gerado por scripts/precos_dados.mjs (opcional; sem ele a aba avisa que não há preços)
+    precos: existsSync(path.join(process.env.DADOS_DIR, 'precos.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'precos.json'), 'utf8')) : null,
     promo: (() => { const p = promoDados(R); return { ...p, produtos: compacta(p.produtos, ['day', 'product_type', 'product_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit']) }; })(),
   };
   const tpl = await readFile(path.join(root, 'src', 'painel.html'), 'utf8');
@@ -165,8 +167,8 @@ async function main() {
   if (/<\/script/i.test(d3)) throw new Error('d3 contém </script>');
   if (!tpl.includes('/*DADOS*/null')) throw new Error('Marcador de dados não encontrado no modelo');
   const prev = await readFile(path.join(root, 'src', 'previsao.js'), 'utf8');
-  const estJs = [await readFile(path.join(root, 'src', 'fichas.js'), 'utf8'), await readFile(path.join(root, 'src', 'estoque.js'), 'utf8'), await readFile(path.join(root, 'src', 'compra.js'), 'utf8'), await readFile(path.join(root, 'src', 'historico.js'), 'utf8'), await readFile(path.join(root, 'src', 'analise.js'), 'utf8'), promoJs(await readFile(path.join(root, 'src', 'promocoes.js'), 'utf8')), 'if (window.PromoAba && typeof DADOS !== "undefined" && DADOS && DADOS.promo) PromoAba.define(DADOS.promo);'].join('\n');
-  const abaEst = (await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_compra.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_promocoes.html'), 'utf8'));
+  const estJs = [await readFile(path.join(root, 'src', 'fichas.js'), 'utf8'), await readFile(path.join(root, 'src', 'estoque.js'), 'utf8'), await readFile(path.join(root, 'src', 'compra.js'), 'utf8'), await readFile(path.join(root, 'src', 'historico.js'), 'utf8'), await readFile(path.join(root, 'src', 'analise.js'), 'utf8'), promoJs(await readFile(path.join(root, 'src', 'promocoes.js'), 'utf8')), 'if (window.PromoAba && typeof DADOS !== "undefined" && DADOS && DADOS.promo) PromoAba.define(DADOS.promo);', await readFile(path.join(root, 'src', 'precos.js'), 'utf8'), 'if (window.PrecosAba && typeof DADOS !== "undefined" && DADOS && DADOS.precos) PrecosAba.define(DADOS.precos);'].join('\n');
+  const abaEst = (await readFile(path.join(root, 'src', 'aba_estoque.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_compra.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_promocoes.html'), 'utf8')) + (await readFile(path.join(root, 'src', 'aba_precos.html'), 'utf8'));
   for (const [n, t] of [['previsao.js', prev], ['estoque.js', estJs]]) if (/<\/script/i.test(t)) throw new Error(n + ' contém </script>');
   for (const m of ['/*PREVISAO*/', '/*ESTOQUE*/', '<!--ABA_ESTOQUE-->']) if (!tpl.includes(m)) throw new Error('Marcador ' + m + ' não encontrado no modelo');
   const json = JSON.stringify(dados).replace(/</g, '\\u003c');
