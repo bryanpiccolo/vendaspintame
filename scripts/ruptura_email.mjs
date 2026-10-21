@@ -39,9 +39,12 @@ const D = {
   produtos: B.compacta([...R.produtos_hist, ...R.produtos_rec], P),
   estoque_ontem: R.estoque_ontem.map((r) => ({ month: ref, ...r })), // sem compactar: mantém o SKU das variantes zeradas
   dias_sem_estoque: R.dias_sem_estoque,
+  // estoque físico pelo Bling: <pasta>/estoque_bling.json (scripts/bling_estoque.mjs); sem ele, fica o do Shopify
+  estoque_bling: existsSync(path.join(pasta, 'estoque_bling.json')) ? JSON.parse(await readFile(path.join(pasta, 'estoque_bling.json'), 'utf8')) : null,
   // só produtos ativos no Shopify: lista em <pasta>/precos.json (scripts/precos_dados.mjs); sem ela, entram todos
   ativos: existsSync(path.join(pasta, 'precos.json')) ? Previsao.ativosDe(JSON.parse(await readFile(path.join(pasta, 'precos.json'), 'utf8')).produtos) : null,
 };
+if (!D.estoque_bling) console.error('Aviso: sem estoque_bling.json na pasta; o estoque vem do Shopify.');
 if (!D.ativos) console.error('Aviso: sem precos.json na pasta; rascunhos e arquivados entram na lista.');
 const res = Previsao.calcula(D, { prazo: 22, cobertura: 60 });
 const limite = Previsao.addDias(ref, DIAS_PRE);
@@ -93,7 +96,7 @@ if (pre.length) {
   H.push(`</table>`);
 } else H.push(`<p>Nenhuma peça deve acabar nas próximas 2 semanas.</p>`);
 if (temAnt) H.push(`<p style="margin-top:18px">${repostos.length ? `<b>Saíram da lista de sem estoque desde o envio anterior (${repostos.length}):</b> ${esc(repostos.map((k) => k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '')).join('; '))}.` : 'Nenhuma peça saiu da lista de sem estoque desde o envio anterior.'}</p>`);
-H.push(`<p style="font-size:11px;color:#777;margin-top:22px">Mesma previsão da aba Estoque do painel: participação de cada peça nas vendas dos ${janela}, sobre a previsão de vendas da loja dia a dia. Os kits com 6 e com 12 canetinhas contam como a mesma peça. Ficam fora os mesmos produtos que a aba Estoque tira do risco de ruptura (Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calças, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons) e embalagens. Só vendas do site.</p></div>`);
+H.push(`<p style="font-size:11px;color:#777;margin-top:22px">Mesma previsão da aba Estoque do painel: participação de cada peça nas vendas dos ${janela}, sobre a previsão de vendas da loja dia a dia. Os kits com 6 e com 12 canetinhas contam como a mesma peça. Ficam fora os mesmos produtos que a aba Estoque tira do risco de ruptura (Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calças, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons) e embalagens. ${D.estoque_bling ? 'Estoque físico do Bling, vendas do site.' : 'Só vendas do site.'}</p></div>`);
 
 // Texto simples e sem acento, no mesmo formato do Calendário e do alerta de prazos: é o que chega no comercial@.
 const ascii = (x) => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E\n]/g, '').replace(/ +/g, ' ').trim();
@@ -125,7 +128,7 @@ if (sem.length) sem.forEach((i, k) => T.push(linhaSem(i, k + 1))); else T.push('
 T.push('', `PRE-RUPTURA - ACABAM ATE ${br(limite)} (${pre.length}) - do que acaba primeiro para o que acaba depois`);
 if (pre.length) pre.forEach((i, k) => T.push(linhaPre(i, k + 1))); else T.push('Nenhuma peca deve acabar nas proximas 2 semanas.');
 if (temAnt) { T.push('', `REPOSTOS - SAIRAM DA LISTA DE SEM ESTOQUE (${repostos.length})`); if (repostos.length) for (const k of repostos) T.push('- ' + k.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').replace(/ \| Default Title$/, '').replace(' | ', ' - tam ')); else T.push('Nenhum.'); }
-T.push('', 'Como funciona - Sem estoque = peca que vende e esta com estoque zerado no site. Pre-ruptura = peca que, no ritmo de venda atual, acaba nas proximas 2 semanas (a data e uma estimativa, pela mesma previsao da aba Estoque do painel). [04/06] = tamanhos 04 e 06, os que mais vendem. Kits com 6 e 12 canetinhas contam como a mesma peca. So produtos ativos no site. Ficam fora Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calcas, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons e embalagens.');
+T.push('', 'Como funciona - Sem estoque = peca que vende e esta com estoque zerado ' + (D.estoque_bling ? 'no Bling (estoque fisico; as vendas sao as do site)' : 'no site') + '. Pre-ruptura = peca que, no ritmo de venda atual, acaba nas proximas 2 semanas (a data e uma estimativa, pela mesma previsao da aba Estoque do painel). [04/06] = tamanhos 04 e 06, os que mais vendem. Kits com 6 e 12 canetinhas contam como a mesma peca. So produtos ativos no site. Ficam fora Copa do Mundo e Futebol, camisetas adulto e com bolso, kits de canetinhas, scrunchie, calcas, estojos e lancheiras, mochilas, bermudas e shorts, casacos e moletons e embalagens.');
 const assuntoTxt = ascii(`Ruptura de estoque - semana ${br(ref)} - ${sem.length} sem estoque, ${pre.length} acabam em 2 semanas - ${sem.filter(t46).length + pre.filter(t46).length} nos tam 04 e 06` + (temAnt ? ` - ${novosSem + novosPre} novos` : ''));
 
 await mkdir(saida, { recursive: true });

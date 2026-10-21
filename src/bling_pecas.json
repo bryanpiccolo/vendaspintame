@@ -1,0 +1,60 @@
+{
+"_sobre": "Exceções do vínculo entre o SKU do kit no Shopify e a peça física no Bling. A regra geral tira o K do começo e a quantidade de canetinhas do fim (K CA VC 04 12 -> CAVC04). Aqui ficam os kits em que o código da peça foge da regra, os kits com mais de uma peça (a disponibilidade é a da peça com menos estoque) e os kits sem peça na composição do Bling (null: estoque considerado zero).",
+"kits": {
+"KADVCG12": [
+"CADVCG"
+],
+"KADVCGG06": [
+"CADVCGG"
+],
+"KADVCGG12": [
+"CADVCGG"
+],
+"KEST BG VC PR 6": [
+"ESTBGVCPR"
+],
+"K EST BG VC PR 6": [
+"ESTBGVCPR"
+],
+"K EST BG VC PR 12": [
+"ESTBGVCPR"
+],
+"K EST MINI VC PR 6": [
+"ESTMINIVCPR"
+],
+"K EST MINI VC PR 12": [
+"ESTMINIVCPR"
+],
+"K LAN TE VC PR 6": [
+"LANTEVCPR"
+],
+"K LAN TE VC PR 12": [
+"LANTEVCPR"
+],
+"KMOVC06": [
+"MOVC"
+],
+"KMOVC12": [
+"MOVC"
+],
+"KCEAP12": [
+"MOAP",
+"ESTBGAP",
+"LANTEAP",
+"LIPM"
+],
+"KCEVC12": [
+"MOVC",
+"ESTBGVCPR",
+"LANTEVCPR",
+"LIPM"
+],
+"K CL PE LI NA 10 6": null,
+"K CL PE LI NA 10 12": null,
+"K CL BR PR NA 06 6": null,
+"K CL BR PR NA 06 12": null,
+"k CL PR NA 06 12": [
+"CLPEPRNA06"
+]
+}
+}

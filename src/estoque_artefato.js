@@ -16,10 +16,15 @@
     const se = dash.data('dias_sem_estoque');
     if (se.status === 'loading') return;
     const semEst = se.status === 'ok' ? linhas(se.data) : null;
+    // estoque físico pelo Bling (arquivo diário): espera enquanto carrega; se falhar, segue com o estoque do Shopify
+    const bl = dash.data('estoque_bling');
+    if (bl.status === 'loading') return;
+    let bling = null;
+    if (bl.status === 'ok') { try { const t = linhas(bl.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); bling = t ? JSON.parse(t) : null; } catch (e) { bling = null; } }
     let ativos = null;
     if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ativos = t ? window.Previsao.ativosDe(JSON.parse(t).produtos) : null; } catch (e) { ativos = null; } }
     const [mensal, diario, pecas, est] = ds.map((d) => linhas(d.data));
-    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0, semEst ? semEst.length : -1].join('|');
+    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0, semEst ? semEst.length : -1, bling ? bling.gerado_em : ''].join('|');
     if (nova === chave) return;
     const dias = diario.map((r) => ({ day: String(r.day).slice(0, 10), net_items_sold: r.net_items_sold || 0, gross_sales: r.gross_sales || 0, discounts: r.discounts || 0, shipping_charges: r.shipping_charges || 0 }))
       .sort((a, b) => (a.day < b.day ? -1 : 1));
@@ -38,6 +43,7 @@
       estoque_ontem: est,
       ativos,
       dias_sem_estoque: semEst,
+      estoque_bling: bling,
     });
   };
 })();

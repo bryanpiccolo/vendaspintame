@@ -191,7 +191,7 @@
       if (m === mesRef) a.vendas_mes += u;
       else if (janela.has(m)) a.vendas_janela_fechada += u;
     }
-    for (const r of abre(D.estoque_ontem)) {
+    for (const r of comBling(abre(D.estoque_ontem), D.estoque_bling)) {
       if (!r.product_title) continue;
       const a = pega(r);
       a.estoque = Math.max(a.estoque, r.ending_inventory_units || 0);
@@ -247,6 +247,17 @@
     return !skus.length || skus.some((s) => cacheAtivos.skus.has(s));
   }
   // Lista de ativos a partir dos produtos do arquivo de preços (scripts/precos_dados.mjs): [{t, v: [[sku, ...]]}].
+  // Estoque físico pelo Bling (arquivo de scripts/bling_estoque.mjs): troca o estoque de cada SKU do Shopify pelo do Bling
+  // e acrescenta as variantes ativas que não apareceram no relatório do Shopify. SKUs sem par no Bling ficam com o do Shopify.
+  function comBling(rows, B) {
+    if (!B || !Array.isArray(B.itens) || !B.itens.length) return rows;
+    const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
+    const m = new Map(B.itens.map((x) => [pl(x[2]), x]));
+    const vistos = new Set(), mes = rows.length ? rows[0].month : null;
+    const out = rows.map((r) => { const k = pl(r.product_variant_sku); const x = k && m.get(k); if (!x) return r; vistos.add(k); return { ...r, ending_inventory_units: x[3] }; });
+    for (const [k, x] of m) if (!vistos.has(k)) out.push({ month: mes, product_title: x[0], product_variant_title: x[1], product_variant_sku: x[2], ending_inventory_units: x[3], inventory_units_sold: 0 });
+    return out;
+  }
   function ativosDe(produtos) {
     if (!Array.isArray(produtos) || !produtos.length) return null;
     return { skus: produtos.flatMap((p) => (p.v || []).map((v) => v[0]).filter(Boolean)), titulos: produtos.map((p) => p.t) };
@@ -298,6 +309,6 @@
     return { loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
-  raiz.Previsao = { REGRAS, calcula, ativosDe, loja, pecas, addMes, diasNoMes, addDias };
+  raiz.Previsao = { REGRAS, calcula, ativosDe, comBling, loja, pecas, addMes, diasNoMes, addDias };
   if (typeof module !== 'undefined') module.exports = raiz.Previsao;
 })(typeof window !== 'undefined' ? window : globalThis);

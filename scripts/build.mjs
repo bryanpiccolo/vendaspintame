@@ -164,10 +164,13 @@ async function main() {
     dias_sem_estoque: compacta(R.dias_sem_estoque, ['month', 'product_title', 'product_variant_title', 'days_out_of_stock']),
     // aba Precificação: arquivo gerado por scripts/precos_dados.mjs (opcional; sem ele a aba avisa que não há preços)
     precos: existsSync(path.join(process.env.DADOS_DIR, 'precos.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'precos.json'), 'utf8')) : null,
+    // estoque físico pelo Bling: arquivo gerado por scripts/bling_estoque.mjs (opcional; sem ele fica o estoque do Shopify)
+    estoque_bling: existsSync(path.join(process.env.DADOS_DIR, 'estoque_bling.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'estoque_bling.json'), 'utf8')) : null,
     promo: (() => { const p = promoDados(R); return { ...p, produtos: compacta(p.produtos, ['day', 'product_type', 'product_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit']) }; })(),
   };
   // Estoque, Compra e Precificação: só produtos ativos no Shopify (a lista vem do arquivo de preços)
   dados.ativos = dados.precos && dados.precos.produtos ? { skus: dados.precos.produtos.flatMap((p) => p.v.map((v) => v[0]).filter(Boolean)), titulos: dados.precos.produtos.map((p) => p.t) } : null;
+  if (!dados.estoque_bling) console.warn('Sem estoque_bling.json: o estoque das abas Estoque, Compra e Precificação vem do Shopify.');
   if (!dados.ativos) console.warn('Sem precos.json: as abas de estoque vão incluir rascunhos e arquivados.');
   const tpl = await readFile(path.join(root, 'src', 'painel.html'), 'utf8');
   const d3 = await readFile(path.join(root, 'node_modules', 'd3', 'dist', 'd3.min.js'), 'utf8');
