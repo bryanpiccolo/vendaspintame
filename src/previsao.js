@@ -294,6 +294,17 @@
       let acc = 0, ruptura = null, demHoriz = 0, demPrazo = 0, demCob = 0;
       dias.forEach((d, i) => { const q = share * d.valor * mult; acc += q; if (ruptura == null && acc > it.estoque) ruptura = d.dia; if (i < horizonte) demHoriz += q; if (i < prazo) demPrazo += q; else if (i < horizonte) demCob += q; });
       it.ruptura = it.estoque <= 0 && share > 0 ? 'agora' : ruptura;
+      // estoque projetado no fim de cada mês (sem contar compras novas) e quantos dias ele cobre a partir dali
+      it.fim_mes = {}; it.cob_fim = {};
+      { let a = 0; const ult = dias.length ? dias[dias.length - 1].dia : null;
+        for (const d of dias) {
+          a += share * d.valor * mult;
+          const k = d.dia.slice(0, 7);
+          if (d.dia.slice(8) === String(diasNoMes(k)).padStart(2, '0')) {
+            const resto = Math.max(0, it.estoque - a); it.fim_mes[k] = resto;
+            it.cob_fim[k] = share <= 0 ? null : resto <= 0 ? 0 : ruptura && ruptura > d.dia ? Math.round((Date.parse(ruptura + 'T12:00:00Z') - Date.parse(d.dia + 'T12:00:00Z')) / 86400000) : (ult ? -Math.round((Date.parse(ult + 'T12:00:00Z') - Date.parse(d.dia + 'T12:00:00Z')) / 86400000) : null);
+          }
+        } }
       const diaria30 = dias.slice(0, 30).reduce((a, d) => a + share * d.valor * mult, 0) / 30;
       it.diaria30 = diaria30;
       it.cobertura_dias = diaria30 > 0 ? it.estoque / diaria30 : null;

@@ -148,11 +148,24 @@
   const ordTam = (t) => { if (/^\d+$/.test(t)) return [0, +t]; const Lt = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG']; const i = Lt.indexOf(t); return i >= 0 ? [1, i] : [2, 0]; };
   const cmpTam = (a, b) => { const A = ordTam(a.tamanho), B = ordTam(b.tamanho); return A[0] - B[0] || A[1] - B[1] || String(a.tamanho).localeCompare(String(b.tamanho)); };
 
+  // estoque no fim de cada mês (f0 = mês atual, f1..f3 = próximos) e cobertura em dias a partir dali (c0..c3).
+  // Cobertura negativa = mais que |c| dias (passa do horizonte da previsão). No grupo: soma do estoque e o menor
+  // prazo entre as peças que vendem (tamanhos não substituem um ao outro).
+  function fimCob(its, ms) {
+    const o = {};
+    ms.forEach((m, k) => {
+      o['f' + k] = its.reduce((a, i) => a + ((i.fim_mes && i.fim_mes[m]) || 0), 0);
+      const cs = its.filter((i) => i.share > 0 && i.cob_fim && i.cob_fim[m] != null).map((i) => i.cob_fim[m]);
+      o['c' + k] = cs.length ? cs.reduce((a, c) => ((c < 0 ? -c + 0.5 : c) < (a < 0 ? -a + 0.5 : a) ? c : a)) : null;
+    });
+    return o;
+  }
+  const fmtCob = (c) => c == null ? '' : c < 0 ? 'cobre mais de ' + int.format(Math.floor(-c / 30)) + ' meses' : c === 0 ? 'zerado' : 'cobre ' + int.format(c) + ' dias';
   function linhas(v = st.v, generico = false) {
     const dims = v.split('_');
-    const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes);
+    const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes), ms = [mesRef, ...meses3];
     const its = R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
-    if (v === 'produto_tamanho' && !generico) return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
+    if (v === 'produto_tamanho' && !generico) return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], ...fimCob([i], ms), media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
     const acc = new Map();
     for (const i of its) {
       const k = dims.map((d) => i[d]).join('\u0001');
@@ -172,7 +185,7 @@
       const acabam = comVenda.filter((i) => i.ruptura);
       const cobs = comVenda.map((i) => i.cobertura_dias).filter((c) => c != null);
       a.sell_through = a.vj > 0 ? a.vj / (a.vj + a.estoque) : null;
-      const g = { ...a, ruptura: prim ? prim.ruptura : null, rup_quem: prim && prim.ruptura ? (dims.includes('produto') ? 'tam. ' + prim.tamanho : prim.produto.replace(/ Infantil para Colorir| \+ 6 canetinhas/g, '') + (prim.tamanho !== 'Único' ? ' ' + prim.tamanho : '')) : '', rup_n: acabam.length, itens_venda: comVenda.length, cobertura_dias: cobs.length ? Math.min(...cobs) : null };
+      const g = { ...a, ...fimCob(a.itens, ms), ruptura: prim ? prim.ruptura : null, rup_quem: prim && prim.ruptura ? (dims.includes('produto') ? 'tam. ' + prim.tamanho : prim.produto.replace(/ Infantil para Colorir| \+ 6 canetinhas/g, '') + (prim.tamanho !== 'Único' ? ' ' + prim.tamanho : '')) : '', rup_n: acabam.length, itens_venda: comVenda.length, cobertura_dias: cobs.length ? Math.min(...cobs) : null };
       delete g.itens;
       g.status = status(g);
       return g;
@@ -193,10 +206,10 @@
       { f: 'estoque', label: 'Estoque hoje', fmt: (x) => int.format(x) },
       { f: 'media3', label: 'Média/mês (' + P.REGRAS.mesesBase + ' meses)', fmt: (x) => int.format(x), sm: true },
       { f: 'sell_through', label: 'Sell-through', st2: true },
-      { f: 'prev_resto_mes', label: 'Previsto resto de ' + nm, fmt: (x) => int.format(x) },
-      { f: 'm1', label: 'Prev. ' + curto(meses3[0]), fmt: (x) => int.format(x) },
-      { f: 'm2', label: 'Prev. ' + curto(meses3[1]), fmt: (x) => int.format(x), sm: true },
-      { f: 'm3', label: 'Prev. ' + curto(meses3[2]), fmt: (x) => int.format(x), sm: true },
+      { f: 'prev_resto_mes', label: 'Venda prev. resto de ' + nm, fmt: (x) => int.format(x), mes: 0, tip: 'Venda prevista do resto do mês; embaixo, o estoque que sobra no último dia do mês (sem compras novas) e quantos dias ele cobre a partir dali' },
+      { f: 'm1', label: 'Venda prev. ' + curto(meses3[0]), fmt: (x) => int.format(x), mes: 1, tip: 'Venda prevista no mês; embaixo, o estoque que sobra no último dia do mês (sem compras novas) e quantos dias ele cobre a partir dali' },
+      { f: 'm2', label: 'Venda prev. ' + curto(meses3[1]), fmt: (x) => int.format(x), sm: true, mes: 2, tip: 'Venda prevista no mês; embaixo, o estoque que sobra no último dia do mês (sem compras novas) e quantos dias ele cobre a partir dali' },
+      { f: 'm3', label: 'Venda prev. ' + curto(meses3[2]), fmt: (x) => int.format(x), sm: true, mes: 3, tip: 'Venda prevista no mês; embaixo, o estoque que sobra no último dia do mês (sem compras novas) e quantos dias ele cobre a partir dali' },
       { f: 'cobertura_dias', label: 'Cobertura (dias)', fmt: (x) => x == null ? '—' : x > 365 ? '> 1 ano' : int.format(x) },
       { f: 'ruptura', label: 'Acaba em', rup: true, tip: 'Nas linhas agrupadas: data em que o primeiro tamanho acaba' },
       { f: 'comprar', label: 'Comprar (peças)', fmt: (x) => x > 0 ? int.format(x) : '—', strong: true },
@@ -251,6 +264,7 @@
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); if (r.n > 1 && r.rup_quem) td.appendChild(el('small', 'pm-sub', r.rup_quem + ' primeiro' + (r.rup_n > 1 ? ' · ' + r.rup_n + ' de ' + r.itens_venda + ' acabam até ' + curto(R.loja.futuros[5].mes) : ''))); }
         else {
           td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)';
+          if (c.mes != null && r['f' + c.mes] != null) { const cb = r['c' + c.mes]; const sub = el('small', 'pm-sub', 'fim do mês: ' + int.format(r['f' + c.mes]) + (cb == null ? '' : ' · ' + (r.n > 1 && !r.filho ? '1º tam. a acabar: ' : '') + fmtCob(cb))); if (cb != null && cb >= 0 && cb < 30) sub.classList.add(cb === 0 ? 'pm-bad' : 'pm-warn'); td.appendChild(sub); }
           if (c.f === 'comprar' && r.dem_cobertura != null) {
             const fat = r.dem_cobertura > 0 ? r.necessidade / r.dem_cobertura : 1;
             td.title = `Chega em ${dataBR(R.chegada)}. Venda prevista de ${dataCurta(R.chegada)} a ${dataCurta(R.fimCobertura)}: ${int.format(r.dem_cobertura)}` + (fat > 1.001 ? ` × ${fat.toFixed(2).replace('.', ',')} (sell-through) = ${int.format(r.necessidade)}` : '') + `. Estoque que sobra na chegada: ${int.format(r.sobra_chegada)}. Comprar: ${int.format(r.comprar)}.`;
@@ -267,7 +281,7 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', categoria: 'por categoria', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque no fim de ${dataBR(ref)}. Se a compra for feita hoje, chega em ${dataBR(R.chegada)} (${st.prazo} dias). Comprar = venda prevista nos ${st.cobertura} dias depois da chegada (até ${dataBR(R.fimCobertura)}) × fator de sell-through − estoque que ainda sobra no dia da chegada. Passe o mouse no número para ver a conta. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque hoje = o que existe agora${DADOS.estoque_bling ? ' no Bling' : ' (fim de ' + dataBR(ref) + ')'}. Nas colunas de cada mês: em cima a venda prevista do mês; embaixo o estoque que sobra no último dia do mês, sem contar compras novas, e quantos dias esse estoque cobre a partir dali (laranja abaixo de 30 dias, vermelho zerado; nas linhas agrupadas, a cobertura é a do primeiro tamanho a acabar). Se a compra for feita hoje, chega em ${dataBR(R.chegada)} (${st.prazo} dias). Comprar = venda prevista nos ${st.cobertura} dias depois da chegada (até ${dataBR(R.fimCobertura)}) × fator de sell-through − estoque que ainda sobra no dia da chegada. Passe o mouse no número para ver a conta. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
