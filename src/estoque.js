@@ -328,7 +328,7 @@
       const tr = el('tr');
       const [t, c] = SEL[r.sel]; const tdS = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', t); chip.style.color = c; tdS.appendChild(chip);
       const tdC = el('td'); const w = el('div', 'pm-cob'); const bar = el('i'); bar.style.width = (r.cob === Infinity ? 60 : Math.round(60 * Math.min(r.cob, 180) / maxC)) + 'px'; w.append(bar, el('span', '', r.cob === Infinity ? 'sem venda prevista' : r.cob > 365 ? '> 1 ano' : int.format(r.cob) + ' dias')); tdC.appendChild(w);
-      const tdT = el('td', '', r.tam ? r.tamOk + ' de ' + r.tam : '—'); tdT.style.cssText = 'white-space:normal;min-width:13rem;max-width:20rem;text-align:left'; if (r.zeram.length) { const z = el('small', 'pm-sub', 'zeram: ' + r.zeram.slice(0, 4).join(', ') + (r.zeram.length > 4 ? ' e mais ' + (r.zeram.length - 4) : '')); tdT.appendChild(z); }
+      const tdT = el('td', '', r.tam ? r.tamOk + ' de ' + r.tam : '—'); tdT.style.cssText = 'white-space:normal;min-width:13rem;max-width:20rem;text-align:left'; if (r.zeram.length) { const zs = [...new Set(r.zeram)]; const z = el('small', 'pm-sub', 'zeram: ' + zs.slice(0, 4).join(', ') + (zs.length > 4 ? ' e mais ' + (zs.length - 4) : '')); tdT.appendChild(z); }
       tr.append(el('td', 'pm-txt', r.nome), tdS, el('td', '', int.format(r.e0)), el('td', '', int.format(r.v)), el('td', '', int.format(r.e1)), tdC, tdT);
       return tr;
     });
