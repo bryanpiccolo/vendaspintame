@@ -11,6 +11,12 @@
 .pm-filho td:first-child { padding-left: 1.6rem; color: var(--color-fg-muted); }
 .pm-sub { display: block; font-size: 0.68rem; color: var(--color-fg-muted); }
 .pm-sub.pm-warn { color: var(--color-warn); } .pm-sub.pm-bad { color: var(--color-bad); }
+/* primeira coluna fixa ao rolar a tabela para o lado */
+.pm-tablebox .pm-table th:first-child, .pm-tablebox .pm-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--color-panel); box-shadow: inset -1px 0 0 var(--color-border-line); min-width: 9rem; max-width: 15rem; }
+.pm-tablebox .pm-table thead th:first-child { z-index: 3; }
+.pm-tablebox .pm-table .pm-filho td:first-child { background: color-mix(in srgb, var(--color-fg) 3%, var(--color-panel)); }
+.pm-cob { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.pm-cob i { display: inline-block; height: 6px; border-radius: 3px; background: var(--serie-1, #3b6fd8); opacity: .75; }
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
   <div class="pm-controls">
@@ -41,6 +47,26 @@
     <div class="pm-chart" id="est-grafico-mensal"></div>
   </section>
 
+
+  <section class="pm-card">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="est-promo-titulo">Estoque para ação promocional</h2>
+        <p class="pm-note" id="est-promo-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <div class="pm-seg" id="est-promo-mes" aria-label="Mês"></div>
+      <div class="pm-seg" id="est-promo-visao" aria-label="Agrupar por">
+        <button type="button" data-v="estampa">Estampa</button>
+        <button type="button" data-v="produto">Produto</button>
+        <button type="button" data-v="categoria">Categoria</button>
+      </div>
+    </div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="est-promo"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
 
   <section class="pm-card">
     <div class="pm-card-head">

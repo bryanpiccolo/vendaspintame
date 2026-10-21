@@ -27,6 +27,7 @@
   ];
   const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
   const st = { m: 'pecas', v: ['produto', 'estampa', 'categoria', 'tamanho'].includes(guarda.le('visao2', 'produto')) ? guarda.le('visao2', 'produto') : 'produto', abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo2', 22), cobertura: +guarda.le('cobertura', 60) };
+  st.pv = ['estampa', 'produto', 'categoria'].includes(guarda.le('pvisao', 'estampa')) ? guarda.le('pvisao', 'estampa') : 'estampa'; st.pm = null;
   let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
 
@@ -286,11 +287,60 @@
     legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
   }
 
+
+  // ---------- estoque para ação promocional ----------
+  // Por estampa (ou produto/categoria): estoque no começo do mês escolhido, venda prevista no mês, sobra no fim e
+  // cobertura = estoque do começo ÷ venda prevista por dia no mês. Entram todos os produtos ativos com roupa
+  // (inclusive os que ficam fora do risco de ruptura); saem embalagens, canetinhas e testes.
+  const PROMO_FORA = /^(embalagem|canetinhas|teste|decora[cç][aã]o)$|^kit de \d+ canetinhas|^embalagem|envelope|box presente/i;
+  function drawPromo() {
+    const meses = [mesRef, ...R.loja.futuros.slice(0, 2).map((f) => f.mes)];
+    if (!meses.includes(st.pm)) st.pm = meses[1];
+    const m = st.pm, nd = P.diasNoMes ? P.diasNoMes(m) : 30;
+    const ini = (i) => Math.max(0, m === mesRef ? i.estoque : ((i.fim_mes || {})[P.addMes(m, -1)] || 0));
+    const venda = (i) => m === mesRef ? i.prev_resto_mes : (i.prev_meses[m] || 0);
+    const diasM = m === mesRef ? Math.max(1, P.diasNoMes(m) - +ref.slice(8, 10)) : nd;
+    const box = document.getElementById('est-promo-mes'); box.replaceChildren();
+    for (const k of meses) { const b = el('button', '', k === mesRef ? 'Resto de ' + nomeMes(k, { year: undefined }) : cap(nomeMes(k, { year: undefined }))); b.type = 'button'; b.dataset.m = k; b.setAttribute('aria-pressed', String(k === m)); b.addEventListener('click', () => { st.pm = k; drawPromo(); }); box.appendChild(b); }
+    pressed('#est-promo-visao', 'v', st.pv);
+    const acc = new Map();
+    for (const i of R.itens) {
+      if (PROMO_FORA.test(i.categoria) || PROMO_FORA.test(i.produto)) continue;
+      const e0 = ini(i), v = venda(i), e1 = Math.max(0, e0 - v);
+      if (e0 <= 0 && v <= 0.05) continue;
+      const k = i[st.pv];
+      let a = acc.get(k); if (!a) { a = { nome: k, e0: 0, v: 0, e1: 0, tam: 0, tamOk: 0, zeram: [] }; acc.set(k, a); }
+      a.e0 += e0; a.v += v; a.e1 += e1;
+      if (v > 0.05 || e0 > 0) { a.tam++; if (e1 >= 1) a.tamOk++; else if (v > 0.05) a.zeram.push(st.pv === 'produto' ? 'tam. ' + i.tamanho : i.produto.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').trim() + (i.tamanho !== 'Único' ? ' ' + i.tamanho : '')); }
+    }
+    const rows = [...acc.values()].map((a) => {
+      a.cob = a.v > 0.05 ? a.e0 / (a.v / diasM) : (a.e0 > 0 ? Infinity : 0);
+      const fr = a.tam ? a.tamOk / a.tam : 0;
+      a.sel = a.e0 <= 0 ? 'sem' : a.cob === Infinity ? 'parado' : a.cob >= 60 && fr >= 0.7 ? 'boa' : a.cob < 30 || fr < 0.5 ? 'evitar' : 'cuidado';
+      return a;
+    }).sort((x, y) => (y.cob === Infinity ? 1e9 + y.e0 : y.cob) - (x.cob === Infinity ? 1e9 + x.e0 : x.cob) || y.e0 - x.e0);
+    const SEL = { boa: ['Boa opção', 'var(--color-ok)'], parado: ['Boa opção (sem venda prevista)', 'var(--color-ok)'], cuidado: ['Com cuidado', 'var(--color-warn)'], evitar: ['Evitar', 'var(--color-bad)'], sem: ['Sem estoque', 'var(--color-bad)'] };
+    const nm = nomeMes(m, { year: undefined }), inicio = m === mesRef ? 'Estoque hoje' : 'Estoque em 1º de ' + nm;
+    const cols = [[{ estampa: 'Estampa', produto: 'Produto', categoria: 'Categoria' }[st.pv], 1], ['Para promoção', 1], [inicio, 0], ['Venda prevista ' + (m === mesRef ? 'até o fim de ' : 'em ') + nm, 0], ['Sobra no fim de ' + nm, 0], ['Cobertura no começo', 0], ['Tamanhos com estoque no fim do mês', 1]];
+    const hr = document.querySelector('#est-promo thead tr'); hr.replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
+    const maxC = Math.max(1, ...rows.map((r) => (r.cob === Infinity ? 0 : Math.min(r.cob, 180))));
+    const body = rows.map((r) => {
+      const tr = el('tr');
+      const [t, c] = SEL[r.sel]; const tdS = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', t); chip.style.color = c; tdS.appendChild(chip);
+      const tdC = el('td'); const w = el('div', 'pm-cob'); const bar = el('i'); bar.style.width = (r.cob === Infinity ? 60 : Math.round(60 * Math.min(r.cob, 180) / maxC)) + 'px'; w.append(bar, el('span', '', r.cob === Infinity ? 'sem venda prevista' : r.cob > 365 ? '> 1 ano' : int.format(r.cob) + ' dias')); tdC.appendChild(w);
+      const tdT = el('td', '', r.tam ? r.tamOk + ' de ' + r.tam : '—'); tdT.style.cssText = 'white-space:normal;min-width:13rem;max-width:20rem;text-align:left'; if (r.zeram.length) { const z = el('small', 'pm-sub', 'zeram: ' + r.zeram.slice(0, 4).join(', ') + (r.zeram.length > 4 ? ' e mais ' + (r.zeram.length - 4) : '')); tdT.appendChild(z); }
+      tr.append(el('td', 'pm-txt', r.nome), tdS, el('td', '', int.format(r.e0)), el('td', '', int.format(r.v)), el('td', '', int.format(r.e1)), tdC, tdT);
+      return tr;
+    });
+    document.querySelector('#est-promo tbody').replaceChildren(...body);
+    document.getElementById('est-promo-titulo').textContent = 'Estoque para ação promocional em ' + nm;
+    document.getElementById('est-promo-nota').textContent = `Do maior para o menor estoque em relação à venda. ${inicio} = o que deve sobrar depois da venda prevista até lá, sem contar compras novas. Cobertura no começo = quantos dias esse estoque dura no ritmo previsto para ${nm}. Boa opção: cobertura de 60 dias ou mais e pelo menos 70% dos tamanhos com estoque até o fim do mês. Evitar: menos de 30 dias ou mais da metade dos tamanhos zerando. Uma promoção vende acima da previsão, então prefira as boas opções. Inclui todos os produtos ativos (também calças, moletons e Copa do Mundo); só vendas do site.`;
+  }
   function janela() {
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
   }
 
-  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawTabela(); }
+  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawPromo(); drawTabela(); }
   window.drawEstoque = desenha;
   window.EstoqueAba = {
     define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); if (window.CompraAba) window.CompraAba.desenha(); },
@@ -304,6 +354,7 @@
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
   document.getElementById('est-seg-metrica').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.m; drawMensal(); } });
   document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao2', st.v); st.abertos.clear(); drawTabela(); } });
+  document.getElementById('est-promo-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.pv = b.dataset.v; guarda.grava('pvisao', st.pv); drawPromo(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));
