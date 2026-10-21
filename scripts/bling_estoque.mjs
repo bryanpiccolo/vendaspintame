@@ -54,7 +54,12 @@ if (!pasta || !precos || !saida) { console.error('Uso: node scripts/bling_estoqu
 const saldo = new Map();
 function junta(o, d = 0) {
   if (!o || d > 8) return;
-  if (typeof o === 'string') { const t = o.trim(); if (t.startsWith('{') || t.startsWith('[')) { try { junta(JSON.parse(t), d + 1); } catch { /* texto */ } } return; }
+  if (typeof o === 'string') {
+    // a resposta do conector pode vir com notas depois do JSON ("---\nNota: ..."): corta antes de ler
+    const t = o.trim().split(/\n---\s*\n/)[0].trim();
+    if (t.startsWith('{') || t.startsWith('[')) { try { junta(JSON.parse(t), d + 1); } catch { /* texto */ } }
+    return;
+  }
   if (Array.isArray(o)) { for (const x of o) junta(x, d + 1); return; }
   if (typeof o !== 'object') return;
   if ('codigo' in o && o.estoque && typeof o.estoque === 'object' && o.estoque.saldoVirtualTotal != null) {
