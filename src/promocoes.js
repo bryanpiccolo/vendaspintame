@@ -404,6 +404,15 @@
       if (m.frete_pedido != null && b.frete_pedido != null && m.frete_pedido >= b.frete_pedido * 0.9) C.push(`O frete cobrado por pedido não caiu (${brl2.format(b.frete_pedido)} → ${brl2.format(m.frete_pedido)}): sinal de que poucos pedidos usaram o frete grátis.`);
       else if (m.frete_pedido != null && b.frete_pedido) M.push({ t: 'O frete grátis foi usado.', d: `Frete cobrado por pedido caiu de ${brl2.format(b.frete_pedido)} para ${brl2.format(m.frete_pedido)}.` });
     }
+    if (P.tipo === 'cupom' && P.cupom) {
+      // parcela aproximada da venda bruta que usou o cupom = desconto ÷ % do cupom (supõe que quase todo o desconto do período veio dele)
+      const uso = m.desc_pct != null ? Math.min(1, m.desc_pct / (P.cupom / 100)) : null;
+      if (uso != null) {
+        if (uso < 0.3) { A.push({ t: 'Pouca venda usou o cupom.', d: `O desconto ficou em ${pct1(m.desc_pct)} da venda bruta: algo como ${pct0(uso)} das vendas com o cupom de ${P.cupom}%.` }); acoes.push('Levar o quiz para onde o cliente já está (pop-up no site, e-mail e WhatsApp para a base) e lembrar quem fez o quiz e não comprou.'); }
+        else C.push(`O desconto ficou em ${pct1(m.desc_pct)} da venda bruta: algo como ${pct0(uso)} das vendas usaram o cupom de ${P.cupom}%.`);
+      }
+      if (m.conv != null && b.conv && m.conv / b.conv - 1 >= 0.15) M.push({ t: 'O quiz ajudou a converter.', d: `Conversão de ${pct2(b.conv)} antes para ${pct2(m.conv)}.` });
+    }
     // efeito sem a sazonalidade
     const lq = P.liq && P.liq.gmv, ll = P.liq && P.liq.lucro;
     if (lq) {
