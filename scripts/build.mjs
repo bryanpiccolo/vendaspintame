@@ -166,6 +166,8 @@ async function main() {
     precos: existsSync(path.join(process.env.DADOS_DIR, 'precos.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'precos.json'), 'utf8')) : null,
     // estoque físico pelo Bling: arquivo gerado por scripts/bling_estoque.mjs (opcional; sem ele fica o estoque do Shopify)
     estoque_bling: existsSync(path.join(process.env.DADOS_DIR, 'estoque_bling.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'estoque_bling.json'), 'utf8')) : null,
+    // vendas do Mercado Livre pelo Bling: arquivo de scripts/ml_vendas.mjs (opcional; sem ele a transferência para o escritório não aparece)
+    ml_vendas: existsSync(path.join(process.env.DADOS_DIR, 'ml_vendas.json')) ? JSON.parse(await readFile(path.join(process.env.DADOS_DIR, 'ml_vendas.json'), 'utf8')) : null,
     promo: (() => { const p = promoDados(R); return { ...p, produtos: compacta(p.produtos, ['day', 'product_type', 'product_title', 'net_items_sold', 'gross_sales', 'discounts', 'sales_reversals', 'net_sales', 'shipping_charges', 'cost_of_goods_sold', 'gross_profit']) }; })(),
   };
   // Estoque, Compra e Precificação: só produtos ativos no Shopify (a lista vem do arquivo de preços)

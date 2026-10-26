@@ -17,6 +17,8 @@
 .pm-tablebox .pm-table .pm-filho td:first-child { background: color-mix(in srgb, var(--color-fg) 3%, var(--color-panel)); }
 .pm-cob { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .pm-cob i { display: inline-block; height: 6px; border-radius: 3px; background: var(--serie-1, #3b6fd8); opacity: .75; }
+.pm-ml-resumo { margin: 0 0 var(--cds-gap-sm); font-size: var(--cds-font-size-body, 0.95rem); }
+.pm-ml-resumo strong { font-weight: var(--cds-font-weight-medium); }
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
   <div class="pm-controls">
@@ -66,6 +68,27 @@
     <div class="pm-tablebox">
       <table class="pm-table" id="est-promo"><thead><tr></tr></thead><tbody></tbody></table>
     </div>
+  </section>
+
+  <section class="pm-card" id="est-ml-card">
+    <div class="pm-card-head">
+      <div>
+        <h2 id="est-ml-titulo">Escritório × Correios: transferência para o Mercado Livre</h2>
+        <p class="pm-note" id="est-ml-nota"></p>
+      </div>
+    </div>
+    <div class="pm-tools">
+      <label class="pm-field">Dias a cobrir no escritório <input class="pm-select pm-num" type="number" id="est-ml-dias" min="1" max="60" step="1"> dias</label>
+      <div class="pm-seg" id="est-ml-filtro" aria-label="Mostrar">
+        <button type="button" data-f="transferir">Só o que transferir</button>
+        <button type="button" data-f="todas">Todas com venda no ML</button>
+      </div>
+    </div>
+    <p class="pm-ml-resumo" id="est-ml-resumo"></p>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="est-ml"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <p class="pm-note" id="est-ml-rodape"></p>
   </section>
 
   <section class="pm-card">

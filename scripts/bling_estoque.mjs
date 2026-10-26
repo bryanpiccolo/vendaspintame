@@ -12,7 +12,11 @@
 //   node scripts/bling_estoque.mjs --lotes <precos.json>
 //       imprime um JSON com os lotes de códigos: [[...], [...]]. Cada lote vai numa chamada listProducts do Bling
 //       com codigos = o lote, fields ["codigo","estoque","situacao"] e limite 100.
-//   node scripts/bling_estoque.mjs <pasta-das-respostas> <precos.json> <saída.json>
+//       Use fields ["id","codigo","estoque"] para que o passo seguinte saiba os IDs dos produtos.
+//   node scripts/bling_estoque.mjs --ids <pasta-das-respostas>
+//       imprime lotes de IDs do Bling: cada lote vai numa chamada getStockBalance (idsProdutos = o lote),
+//       que devolve o saldo de cada depósito (Escritório e Correios / Log + Floripa).
+//   node scripts/bling_estoque.mjs <pasta-das-respostas> <precos.json> <saída.json> [<pasta-saldos-por-depósito>]
 //       <pasta-das-respostas>: as respostas do listProducts (uma por arquivo .json/.txt, {data:[{codigo, estoque:{saldoVirtualTotal}}]})
 //       Recusa (sai com erro) se faltar CAN06 ou se menos de 60% dos códigos voltarem: aí o painel segue com o estoque do Shopify.
 //   node scripts/bling_estoque.mjs --artefato <estoque_bling.json> <saída.json>   (arquivo do dataset "estoque_bling" do painel do Claude)
@@ -47,11 +51,14 @@ function lotes(arqPrecos) {
 if (process.argv[2] === '--lotes') { console.log(JSON.stringify(lotes(process.argv[3]))); process.exit(0); }
 if (process.argv[2] === '--artefato') { const t = readFileSync(process.argv[3], 'utf8'); JSON.parse(t); writeFileSync(process.argv[4], JSON.stringify([{ j: t }])); console.log('ok'); process.exit(0); }
 
-const [, , pasta, precos, saida] = process.argv;
-if (!pasta || !precos || !saida) { console.error('Uso: node scripts/bling_estoque.mjs <pasta-das-respostas> <precos.json> <saída.json>'); process.exit(1); }
+const MODO_IDS = process.argv[2] === '--ids';
+const [, , pasta, precos, saida, pastaDep] = MODO_IDS ? [null, null, process.argv[3]] : process.argv;
+if (!MODO_IDS && (!pasta || !precos || !saida)) { console.error('Uso: node scripts/bling_estoque.mjs <pasta-das-respostas> <precos.json> <saída.json> [<pasta-saldos-por-depósito>]'); process.exit(1); }
 
 // 1. saldos do Bling (procura em qualquer nível objetos com codigo + estoque.saldoVirtualTotal)
-const saldo = new Map();
+const saldo = new Map(), ids = new Map(), porDep = new Map();
+// depósitos do Bling: o escritório abastece o Mercado Livre; o resto fica nos Correios (Log + Floripa)
+export const DEPOSITOS = { escritorio: 14886745232, correios: 14888226712 };
 function junta(o, d = 0) {
   if (!o || d > 8) return;
   if (typeof o === 'string') {
@@ -63,7 +70,14 @@ function junta(o, d = 0) {
   if (Array.isArray(o)) { for (const x of o) junta(x, d + 1); return; }
   if (typeof o !== 'object') return;
   if ('codigo' in o && o.estoque && typeof o.estoque === 'object' && o.estoque.saldoVirtualTotal != null) {
-    const k = pl(o.codigo); if (k) saldo.set(k, Math.max(saldo.has(k) ? saldo.get(k) : -Infinity, Number(o.estoque.saldoVirtualTotal) || 0));
+    const k = pl(o.codigo); if (k) { saldo.set(k, Math.max(saldo.has(k) ? saldo.get(k) : -Infinity, Number(o.estoque.saldoVirtualTotal) || 0)); if (o.id) ids.set(k, o.id); }
+    return;
+  }
+  // resposta do getStockBalance: saldo por depósito
+  if (o.produto && o.produto.codigo != null && Array.isArray(o.depositos)) {
+    const k = pl(o.produto.codigo); const m = {};
+    for (const d of o.depositos) m[d.id] = (m[d.id] || 0) + (Number(d.saldoVirtual ?? d.saldoFisico) || 0);
+    if (k) porDep.set(k, m);
     return;
   }
   for (const v of Object.values(o)) junta(v, d + 1);
@@ -71,6 +85,16 @@ function junta(o, d = 0) {
 const arqs = readdirSync(pasta).filter((f) => /\.(json|txt)$/i.test(f)).sort();
 if (!arqs.length) throw new Error('Nenhuma resposta do Bling em ' + pasta);
 for (const f of arqs) junta(readFileSync(path.join(pasta, f), 'utf8'));
+// --ids <pasta-das-respostas>: lotes de IDs do Bling para o getStockBalance (saldo por depósito)
+if (MODO_IDS) { const L = [...new Set(ids.values())]; const out = []; for (let i = 0; i < L.length; i += LOTE) out.push(L.slice(i, i + LOTE)); console.log(JSON.stringify(out)); process.exit(0); }
+if (pastaDep) for (const f of readdirSync(pastaDep).filter((f) => /\.(json|txt)$/i.test(f)).sort()) junta(readFileSync(path.join(pastaDep, f), 'utf8'));
+const dep = (cods) => {
+  // estoque por depósito de uma variante: só quando ela é uma peça só (kits com várias peças ficam sem a divisão)
+  if (!pastaDep || !cods || cods.length !== 1) return [null, null];
+  const m = porDep.get(pl(cods[0])); if (!m) return [null, null];
+  const esc = Math.max(0, m[DEPOSITOS.escritorio] || 0), tot = Object.values(m).reduce((a, b) => a + b, 0);
+  return [esc, Math.max(0, tot - (m[DEPOSITOS.escritorio] || 0))];
+};
 
 // 2. estoque por variante ativa do Shopify
 const pedidos = new Set(), itens = [], semPar = [], semPeca = [];
@@ -87,7 +111,8 @@ for (const p of produtosDe(precos)) {
       else q = Math.max(0, Math.min(...vals));
     }
     if (fonte === 'sem cadastro no Bling') { semPar.push(sku); continue; } // fica o estoque do Shopify
-    itens.push([p.t, vt, sku, q]);
+    const [esc, cor] = fonte === 'bling' ? dep(cods) : [0, 0];
+    itens.push([p.t, vt, sku, q, esc, cor, cods && cods.length === 1 ? pl(cods[0]) : null]);
     if (fonte !== 'bling') semPeca.push(sku); // kit cuja peça não existe (ou não está ativa) no Bling: estoque 0
   }
 }
@@ -96,5 +121,6 @@ if (!saldo.has('CAN06')) throw new Error('A resposta do Bling não trouxe CAN06:
 if (achados < pedidos.size * 0.6) throw new Error(`Só ${achados} de ${pedidos.size} códigos voltaram do Bling: confira se todos os lotes foram salvos.`);
 const vazios = lotes(precos).map((l, i) => (l.some((c) => saldo.has(pl(c))) ? null : i + 1)).filter(Boolean);
 if (vazios.length) throw new Error(`Nenhum código do lote ${vazios.join(', ')} voltou do Bling: confira se a resposta desse lote foi salva.`);
-writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), fonte: 'Bling', campos: ['product_title', 'product_variant_title', 'product_variant_sku', 'ending_inventory_units'], itens, sem_par: semPar, sem_peca: semPeca }));
+if (pastaDep && porDep.size < achados * 0.8) throw new Error(`Só ${porDep.size} de ${achados} códigos vieram com saldo por depósito: confira se todos os lotes do getStockBalance foram salvos.`);
+writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), fonte: 'Bling', campos: ['product_title', 'product_variant_title', 'product_variant_sku', 'ending_inventory_units', 'estoque_escritorio', 'estoque_correios', 'codigo_bling'], depositos: pastaDep ? { escritorio: 'Escritório', correios: 'Correios (Log + Floripa)' } : null, itens, sem_par: semPar, sem_peca: semPeca }));
 console.log(`ok: ${itens.length} variantes com estoque do Bling (${achados} de ${pedidos.size} códigos encontrados; ${semPeca.length} kits sem a peça no Bling ficam com 0); ${semPar.length} SKUs sem cadastro no Bling ficam com o estoque do Shopify`);

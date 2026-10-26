@@ -195,6 +195,9 @@
       if (!r.product_title) continue;
       const a = pega(r);
       a.estoque = Math.max(a.estoque, r.ending_inventory_units || 0);
+      // divisão do Bling por depósito (Escritório abastece o Mercado Livre; Correios = Log + Floripa)
+      if (r.esc != null) { a.esc = Math.max(a.esc || 0, r.esc); a.cor = Math.max(a.cor || 0, r.cor || 0); }
+      if (r.codigo_bling) { a.codigos = a.codigos || []; if (!a.codigos.includes(r.codigo_bling)) a.codigos.push(r.codigo_bling); }
       const sku = String(r.product_variant_sku || '').trim();
       if (sku && !a.skus.includes(sku)) a.skus.push(sku);
     }
@@ -254,8 +257,8 @@
     const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
     const m = new Map(B.itens.map((x) => [pl(x[2]), x]));
     const vistos = new Set(), mes = rows.length ? rows[0].month : null;
-    const out = rows.map((r) => { const k = pl(r.product_variant_sku); const x = k && m.get(k); if (!x) return r; vistos.add(k); return { ...r, ending_inventory_units: x[3] }; });
-    for (const [k, x] of m) if (!vistos.has(k)) out.push({ month: mes, product_title: x[0], product_variant_title: x[1], product_variant_sku: x[2], ending_inventory_units: x[3], inventory_units_sold: 0 });
+    const out = rows.map((r) => { const k = pl(r.product_variant_sku); const x = k && m.get(k); if (!x) return r; vistos.add(k); return { ...r, ending_inventory_units: x[3], esc: x[4], cor: x[5], codigo_bling: x[6] }; });
+    for (const [k, x] of m) if (!vistos.has(k)) out.push({ month: mes, product_title: x[0], product_variant_title: x[1], product_variant_sku: x[2], ending_inventory_units: x[3], esc: x[4], cor: x[5], codigo_bling: x[6], inventory_units_sold: 0 });
     return out;
   }
   function ativosDe(produtos) {

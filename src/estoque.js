@@ -27,6 +27,7 @@
   ];
   const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
   const st = { m: 'pecas', v: ['produto', 'estampa', 'categoria', 'tamanho'].includes(guarda.le('visao2', 'produto')) ? guarda.le('visao2', 'produto') : 'produto', abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo2', 22), cobertura: +guarda.le('cobertura', 60) };
+  st.mlF = 'transferir'; st.mlN = null;
   st.pv = ['estampa', 'produto', 'categoria'].includes(guarda.le('pvisao', 'estampa')) ? guarda.le('pvisao', 'estampa') : 'estampa'; st.pm = null;
   let R = null, DADOS = null, ref = '', mesRef = '';
   const serieMensal = (m) => new Map(DADOS.mensal.map((r) => [String(r.month).slice(0, 7), m === 'pecas' ? (r.net_items_sold || 0) : (r.gross_sales || 0) + (r.discounts || 0) + (r.shipping_charges || 0)]));
@@ -174,7 +175,7 @@
       if (!a) { a = { id: k, estampa: i.estampa, categoria: i.categoria, produto: i.produto, tamanho: i.tamanho, estoque: 0, prev_resto_mes: 0, m1: 0, m2: 0, m3: 0, media3: 0, vj: 0, comprar: 0, sobra_chegada: 0, dem_cobertura: 0, necessidade: 0, share: 0, ruptura: null, status: null, n: 0, nRisco: 0, nZero: 0, prev_meses: {}, itens: [] }; acc.set(k, a); }
       a.itens.push(i);
       a.estoque += Math.max(0, i.estoque); a.prev_resto_mes += i.prev_resto_mes; a.m1 += i.prev_meses[meses3[0]]; a.m2 += i.prev_meses[meses3[1]]; a.m3 += i.prev_meses[meses3[2]];
-      a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.sobra_chegada += Math.min(i.sobra_chegada, i.necessidade); a.dem_cobertura += i.dem_cobertura; a.necessidade += i.necessidade; a.share += i.share; a.n++; if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
+      a.media3 += i.vendas_janela_fechada / P.REGRAS.mesesBase; a.vj += i.vendas_janela; a.comprar += i.comprar; a.sobra_chegada += Math.min(i.sobra_chegada, i.necessidade); a.dem_cobertura += i.dem_cobertura; a.necessidade += i.necessidade; a.share += i.share; a.n++; if (i.esc != null) { a.esc = (a.esc || 0) + i.esc; a.cor = (a.cor || 0) + (i.cor || 0); } if (i.estoque <= 0 && i.share > 0) a.nZero++; for (const k in i.prev_meses) a.prev_meses[k] = (a.prev_meses[k] || 0) + i.prev_meses[k];
       if (i.comprar > 0) a.nRisco++;
     }
     const d30 = R.dias.slice(0, 30).reduce((x, d) => x + d.valor, 0) / 30;
@@ -265,6 +266,7 @@
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); if (r.n > 1 && r.rup_quem) td.appendChild(el('small', 'pm-sub', r.rup_quem + ' primeiro' + (r.rup_n > 1 ? ' · ' + r.rup_n + ' de ' + r.itens_venda + ' acabam até ' + curto(R.loja.futuros[5].mes) : ''))); }
         else {
           td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)';
+          if (c.f === 'estoque' && r.esc != null) td.appendChild(el('small', 'pm-sub', 'escrit. ' + int.format(r.esc) + ' · Correios ' + int.format(r.cor)));
           if (c.mes != null && r['f' + c.mes] != null) { const cb = r['c' + c.mes]; const sub = el('small', 'pm-sub', 'fim do mês: ' + int.format(r['f' + c.mes]) + (cb == null ? '' : ' · ' + (r.n > 1 && !r.filho ? '1º tam. a acabar: ' : '') + fmtCob(cb))); if (cb != null && cb >= 0 && cb < 30) sub.classList.add(cb === 0 ? 'pm-bad' : 'pm-warn'); td.appendChild(sub); }
           if (c.f === 'comprar' && r.dem_cobertura != null) {
             const fat = r.dem_cobertura > 0 ? r.necessidade / r.dem_cobertura : 1;
@@ -336,11 +338,78 @@
     document.getElementById('est-promo-titulo').textContent = 'Estoque para ação promocional em ' + nm;
     document.getElementById('est-promo-nota').textContent = `Do maior para o menor estoque em relação à venda. ${inicio} = o que deve sobrar depois da venda prevista até lá, sem contar compras novas. Cobertura no começo = quantos dias esse estoque dura no ritmo previsto para ${nm}. Boa opção: cobertura de 60 dias ou mais e pelo menos 70% dos tamanhos com estoque até o fim do mês. Evitar: menos de 30 dias ou mais da metade dos tamanhos zerando. Uma promoção vende acima da previsão, então prefira as boas opções. Inclui todos os produtos ativos (também calças, moletons e Copa do Mundo); só vendas do site.`;
   }
+
+  // ---------- Escritório × Correios: transferência para o Mercado Livre ----------
+  // O escritório abastece o Mercado Livre; o grosso do estoque fica nos Correios (Log + Floripa). Para cada código do
+  // Bling vendido no ML nos últimos 28 dias: venda prevista no ML para os próximos N dias = venda diária dos 28 dias ×
+  // fator de sazonalidade (venda prevista da loja nos N dias ÷ venda real da loja nos 28 dias, entre 0,5 e 3) × (1 + ousadia).
+  // Transferir = previsão arredondada (mínimo 1) − estoque do escritório, limitado ao que existe nos Correios.
+  function diasAteDomingo(iso) { const d = new Date(iso + 'T12:00:00Z').getUTCDay(); return d === 0 ? 7 : 7 - d; }
+  function drawML() {
+    const card = document.getElementById('est-ml-card'); if (!card) return;
+    const B = DADOS.estoque_bling, M = DADOS.ml_vendas;
+    if (!B || !B.depositos || !M || !Array.isArray(M.pedidos)) { card.hidden = true; return; }
+    card.hidden = false;
+    const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
+    const hojeEst = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(B.gerado_em));
+    if (!st.mlN) st.mlN = diasAteDomingo(P.addDias(hojeEst, -1));
+    const N = st.mlN;
+    document.getElementById('est-ml-dias').value = N;
+    pressed('#est-ml-filtro', 'f', st.mlF);
+    // 28 dias de venda do ML até o último dia completo do arquivo
+    const fim = M.ate || ref, ini = P.addDias(fim, -27);
+    const v28 = new Map(), nome = new Map();
+    for (const p of M.pedidos) {
+      if (p.data < ini || p.data > fim) continue;
+      for (const [c, q, d] of p.itens) { const k = pl(c); if (!k) continue; v28.set(k, (v28.get(k) || 0) + q); if (!nome.has(k)) nome.set(k, d); }
+    }
+    // estoque por depósito de cada código (as variantes de 6 e 12 canetinhas apontam para a mesma peça)
+    const est = new Map();
+    for (const x of B.itens) { const k = x[6] && pl(x[6]); if (!k || x[4] == null || est.has(k)) continue; est.set(k, { esc: x[4], cor: x[5], prod: x[0], var: x[1] }); }
+    // sazonalidade: venda prevista da loja por dia nos próximos N dias ÷ venda real por dia nos 28 dias do ML
+    const real = (DADOS.diario_total || []).filter((d) => d.day >= ini && d.day <= fim).reduce((a, d) => a + (d.net_items_sold || 0), 0) / 28;
+    const prevLoja = R.dias.slice(0, N).reduce((a, d) => a + d.valor, 0) / Math.max(1, Math.min(N, R.dias.length));
+    const saz = real > 0 ? Math.max(0.5, Math.min(3, prevLoja / real)) : 1;
+    const mult = 1 + P.REGRAS.ousadia;
+    let rows = [...v28.entries()].map(([k, v]) => {
+      const e = est.get(k) || null;
+      const prev = (v / 28) * saz * mult * N, alvo = Math.max(1, Math.round(prev));
+      const esc = e ? e.esc : null, cor = e ? e.cor : null;
+      const falta = e ? Math.max(0, alvo - esc) : null;
+      const transf = e ? Math.min(cor, falta) : null;
+      return { k, nome: (nome.get(k) || (e ? e.prod + ' ' + e.var : k)).replace(/\s+/g, ' ').trim(), v, prev, alvo, esc, cor, transf, curto: e ? Math.max(0, falta - cor) : null };
+    });
+    const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
+    const semTudo = rows.filter((r) => r.curto > 0);
+    if (st.mlF === 'transferir') rows = rows.filter((r) => r.transf > 0 || r.curto > 0);
+    rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
+    const ate = P.addDias(P.addDias(hojeEst, -1), N);
+    const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
+    document.querySelector('#est-ml thead tr').replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
+    const body = rows.map((r) => {
+      const tr = el('tr');
+      const tdN = el('td', 'pm-txt', r.nome); tdN.appendChild(el('small', 'pm-sub', r.k));
+      const tdP = el('td', '', (r.prev < 10 ? r.prev.toFixed(1).replace('.', ',') : int.format(r.prev))); tdP.appendChild(el('small', 'pm-sub', 'deixar ' + int.format(r.alvo) + ' no escritório'));
+      const tdE = el('td', '', r.esc == null ? '—' : int.format(r.esc)); if (r.esc != null && r.esc < r.alvo) tdE.classList.add(r.esc === 0 ? 'pm-bad' : 'pm-warn');
+      const tdC = el('td', '', r.cor == null ? '—' : int.format(r.cor));
+      const tdT = el('td', '', r.transf == null ? 'sem dado no Bling' : r.transf > 0 ? int.format(r.transf) : '—'); if (r.transf > 0) tdT.style.fontWeight = 'var(--cds-font-weight-medium)';
+      if (r.curto > 0) { const s = el('small', 'pm-sub pm-bad', r.cor === 0 && r.esc === 0 ? 'sem estoque nos dois' : 'faltam ' + int.format(r.curto) + ' (Correios não tem)'); tdT.appendChild(s); }
+      tr.append(tdN, el('td', '', int.format(r.v)), tdP, tdE, tdC, tdT);
+      return tr;
+    });
+    if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já cobre a previsão.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
+    document.querySelector('#est-ml tbody').replaceChildren(...body);
+    const res = document.getElementById('est-ml-resumo'); res.replaceChildren();
+    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' códigos, para cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
+    const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+    document.getElementById('est-ml-nota').textContent = `O escritório abastece as vendas do Mercado Livre; o resto do estoque fica nos Correios (Log + Floripa). Estoque por depósito lido no Bling em ${lido}. Venda do ML: pedidos da loja Mercado Livre no Bling de ${dataCurta(ini)} a ${dataCurta(fim)} (sem cancelados).`;
+    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia nos últimos 28 dias × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Deixar no escritório = previsão arredondada (pelo menos 1 de cada peça que vende no ML). Transferir = o que falta no escritório, até o que existe nos Correios. Só entram peças vendidas no ML nos últimos 28 dias.`;
+  }
   function janela() {
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
   }
 
-  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawPromo(); drawTabela(); }
+  function desenha() { if (!DADOS || document.getElementById('aba-estoque').hidden) return; if (!R) calcula(); janela(); drawCards(); drawPremissas(); drawMensal(); drawPromo(); drawML(); drawTabela(); }
   window.drawEstoque = desenha;
   window.EstoqueAba = {
     define(D) { DADOS = D; ref = D.referencia; mesRef = ref.slice(0, 7); R = null; desenha(); if (window.CompraAba) window.CompraAba.desenha(); },
@@ -356,6 +425,8 @@
   document.getElementById('est-seg-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.v = b.dataset.v; st.sort = null; guarda.grava('visao2', st.v); st.abertos.clear(); drawTabela(); } });
   document.getElementById('est-promo-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.pv = b.dataset.v; guarda.grava('pvisao', st.pv); drawPromo(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
+  document.getElementById('est-ml-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.mlF = b.dataset.f; drawML(); } });
+  document.getElementById('est-ml-dias').addEventListener('change', (e) => { const n = Math.round(+e.target.value); if (n >= 1 && n <= 60) { st.mlN = n; drawML(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));
   let larg = 0; window.addEventListener('resize', () => { const w = document.getElementById('aba-estoque').clientWidth; if (DADOS && R && w && Math.abs(w - larg) > 40) { larg = w; drawMensal(); } });
