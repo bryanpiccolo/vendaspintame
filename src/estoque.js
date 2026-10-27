@@ -377,6 +377,10 @@
     // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
     const FORA_MIN = /^copo|^livro|^kit de \d+ canetinhas|embalagem|envelope/i;
     const cods = new Set([...v28.keys(), ...[...est.entries()].filter(([, e]) => e.esc + e.cor > 0 && !FORA_MIN.test(e.prod)).map(([k]) => k)]);
+    // venda do site por dia em cada código (a previsão da aba; o site sai dos Correios)
+    const site = new Map();
+    for (const i of R.itens) { const c = i.codigos && i.codigos.length === 1 ? pl(i.codigos[0]) : null; if (c) site.set(c, (site.get(c) || 0) + (i.diaria30 || 0)); }
+    const RESERVA = 14; // dias de venda do site que os Correios precisam guardar
     let rows = [...cods].map((k) => {
       const e = est.get(k) || null, v = v28.get(k) || 0;
       // ritmo: o maior entre a média dos 28 dias e a da última semana (se acelerou, o estoque sobe junto)
@@ -384,12 +388,21 @@
       const prev = ritmo * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.ceil(prev - 0.05));
       const esc = e ? e.esc : null, cor = e ? e.cor : null;
       const falta = e ? Math.max(0, alvo - esc) : null;
-      const transf = e ? Math.min(cor, falta) : null;
-      return { k, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
+      // Correios precisa guardar a venda do site dos próximos 14 dias. Se não dá para os dois, divide o estoque total
+      // na proporção da venda de cada canal (ML × site); peça que não vende no ML fica nos Correios.
+      const sd = site.get(k) || 0, reserva = Math.ceil(sd * RESERVA - 0.05);
+      let transf = e ? Math.min(cor, falta) : null, dividido = false;
+      if (e && transf > 0 && cor - transf < reserva) {
+        const tot = esc + cor, mlD = v > 0 ? ritmo * saz * mult : 0;
+        const alvoDiv = mlD + sd > 0 ? Math.round(tot * mlD / (mlD + sd)) : 0;
+        transf = Math.max(0, Math.min(transf, alvoDiv - esc, cor - Math.min(reserva, Math.max(0, tot - alvoDiv))));
+        dividido = true;
+      }
+      return { k, sd, reserva, dividido, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
     });
     const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
-    const semTudo = rows.filter((r) => r.curto > 0);
-    if (st.mlF === 'transferir') rows = rows.filter((r) => r.transf > 0 || r.curto > 0);
+    const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
+    if (st.mlF === 'transferir') rows = rows.filter((r) => r.transf > 0 || r.curto > 0 || (r.dividido && r.v > 0));
     else rows = rows.filter((r) => r.v > 0 || r.esc != null);
     rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
     const ate = P.addDias(P.addDias(hojeEst, -1), N);
@@ -403,6 +416,7 @@
       const tdE = el('td', '', r.esc == null ? '—' : int.format(r.esc)); if (r.esc != null && r.esc < r.alvo) tdE.classList.add(r.esc === 0 ? 'pm-bad' : 'pm-warn');
       const tdC = el('td', '', r.cor == null ? '—' : int.format(r.cor));
       const tdT = el('td', '', r.transf == null ? 'sem dado no Bling' : r.transf > 0 ? int.format(r.transf) : '—'); if (r.transf > 0) tdT.style.fontWeight = 'var(--cds-font-weight-medium)';
+      if (r.dividido) tdT.appendChild(el('small', 'pm-sub pm-warn', (r.v > 0 ? 'dividido com o site' : 'fica para o site') + ' (vende ~' + int.format(Math.max(1, Math.round(r.sd * RESERVA))) + ' em 14 dias)'));
       if (r.curto > 0) { const s = el('small', 'pm-sub pm-bad', r.cor === 0 && r.esc === 0 ? 'sem estoque nos dois' : 'faltam ' + int.format(r.curto) + ' (Correios não tem)'); tdT.appendChild(s); }
       const tdV = el('td', '', r.v ? int.format(r.v) : '—'); if (r.w) tdV.appendChild(el('small', 'pm-sub' + (r.subiu ? ' pm-warn' : ''), int.format(r.w) + ' nos últimos 7 dias'));
       tr.append(tdN, tdV, tdP, tdM, tdE, tdC, tdT);
@@ -411,10 +425,10 @@
     if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já está no mínimo.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
     document.querySelector('#est-ml tbody').replaceChildren(...body);
     const res = document.getElementById('est-ml-resumo'); res.replaceChildren();
-    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
+    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (divs.length ? ' ' + divs.length + (divs.length === 1 ? ' peça foi dividida' : ' peças foram divididas') + ' com o site porque os Correios não têm o suficiente para os dois canais.' : '') + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
     const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
     document.getElementById('est-ml-nota').textContent = `O escritório abastece as vendas do Mercado Livre; o resto do estoque fica nos Correios (Log + Floripa). Estoque por depósito lido no Bling em ${lido}. Venda do ML: pedidos da loja Mercado Livre no Bling de ${dataCurta(ini)} a ${dataCurta(fim)} (sem cancelados).`;
-    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia no ML (a maior entre a média dos últimos 28 dias e a dos últimos 7, para pegar o que está acelerando) × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; ou a previsão arredondada para cima, se for maior: quem tende a vender mais fica com mais no escritório. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Entram todas as peças com estoque no Bling (as de 6 e 12 canetinhas contam como uma).`;
+    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia no ML (a maior entre a média dos últimos 28 dias e a dos últimos 7, para pegar o que está acelerando) × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; ou a previsão arredondada para cima, se for maior: quem tende a vender mais fica com mais no escritório. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Os Correios guardam a venda prevista do site para 14 dias; quando o estoque não dá para os dois canais, ele é dividido na proporção da venda de cada um (ML × site), e o que não vende no ML fica para o site. Entram todas as peças com estoque no Bling (as de 6 e 12 canetinhas contam como uma).`;
   }
   function janela() {
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
