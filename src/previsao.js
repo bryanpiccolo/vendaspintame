@@ -323,6 +323,75 @@
     return { loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
-  raiz.Previsao = { REGRAS, calcula, ativosDe, comBling, loja, pecas, addMes, diasNoMes, addDias };
+
+  // Transferência Correios -> Escritório (o escritório abastece o Mercado Livre). Usada pela aba Estoque e pelo
+  // e-mail de alerta (scripts/transferencia_email.mjs). D: dados (estoque_bling com depósitos, ml_vendas, precos/ml_anuncios,
+  // diario_total); R: resultado de calcula(). o.dias: dias de cobertura no escritório; o.reserva: dias do site guardados nos Correios.
+  function transferenciaML(D, R, o) {
+    o = o || {};
+    const B = D.estoque_bling, M = D.ml_vendas;
+    if (!B || !B.depositos || !M || !Array.isArray(M.pedidos)) return null;
+  const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
+  const hojeEst = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(B.gerado_em));
+  const N = o.dias || 30, RESERVA = o.reserva == null ? 30 : o.reserva;
+  // 28 dias de venda do ML até o último dia completo do arquivo
+  const fim = M.ate || D.referencia, ini = addDias(fim, -27);
+  const v28 = new Map(), v7 = new Map(), nome = new Map(), ini7 = addDias(fim, -6);
+  for (const p of M.pedidos) {
+    if (p.data < ini || p.data > fim) continue;
+    for (const [c, q, d] of p.itens) { const k = pl(c); if (!k) continue; v28.set(k, (v28.get(k) || 0) + q); if (p.data >= ini7) v7.set(k, (v7.get(k) || 0) + q); if (!nome.has(k)) nome.set(k, d); }
+  }
+  // estoque por depósito de cada código (as variantes de 6 e 12 canetinhas apontam para a mesma peça)
+  const est = new Map();
+  for (const x of B.itens) { const k = x[6] && pl(x[6]); if (!k || x[4] == null || est.has(k)) continue; est.set(k, { esc: x[4], cor: x[5], prod: x[0], var: x[1] }); }
+  // sazonalidade: venda prevista da loja por dia nos próximos N dias ÷ venda real por dia nos 28 dias do ML
+  const real = (D.diario_total || []).filter((d) => d.day >= ini && d.day <= fim).reduce((a, d) => a + (d.net_items_sold || 0), 0) / 28;
+  const prevLoja = R.dias.slice(0, N).reduce((a, d) => a + d.valor, 0) / Math.max(1, Math.min(N, R.dias.length));
+  const saz = real > 0 ? Math.max(0.5, Math.min(3, prevLoja / real)) : 1;
+  const mult = 1 + REGRAS.ousadia;
+  // mínimo no escritório: 2 de cada peça/tamanho; 3 se vendeu no ML nos 28 dias (ou a previsão, se for maior)
+  const MIN = 2, MIN_VENDA = 3;
+  const limpa = (e) => (e.prod.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x)).join(' ') : '')).trim();
+  // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
+  const FORA_MIN = /^copo|^livro|^kit de \d+ canetinhas|embalagem|envelope/i;
+  // sortimento do ML: códigos da planilha de anúncios do ML (aba Precificação; código "pai" vale para todos os tamanhos)
+  // + tudo que já vendeu no ML. O que não está no ML não entra.
+  const AN = D.ml_anuncios || (D.precos && D.precos.listings && D.precos.listings.ml) || null;
+  const anuncios = AN && AN.items ? Object.keys(AN.items).map(pl).filter(Boolean) : [];
+  const vendeuML = new Set(); for (const p of M.pedidos) for (const [c] of p.itens) vendeuML.add(pl(c));
+  const noML = (k) => vendeuML.has(k) || anuncios.some((a) => k === a || (k.startsWith(a) && /^\d{2}$|^(PP|P|M|G|GG)$/.test(k.slice(a.length))));
+  const cods = new Set([...v28.keys(), ...[...est.keys()].filter((k) => noML(k) && !FORA_MIN.test(est.get(k).prod))]);
+  // venda do site por dia em cada código (a previsão da aba; o site sai dos Correios)
+  const site = new Map();
+  for (const i of R.itens) { const c = i.codigos && i.codigos.length === 1 ? pl(i.codigos[0]) : null; if (c) site.set(c, (site.get(c) || 0) + (i.diaria30 || 0)); }
+  let rows = [...cods].map((k) => {
+    const e = est.get(k) || null, v = v28.get(k) || 0;
+    // ritmo: a média dos 28 dias, ou, se acelerou, a média com a última semana contando em dobro (o estoque sobe junto)
+    const w = v7.get(k) || 0, ritmo = Math.max(v / 28, (v + w) / 35), subiu = w / 7 > v / 28 * 1.2 && w >= 2;
+    const prev = ritmo * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.ceil(prev - 0.05));
+    const esc = e ? e.esc : null, cor = e ? e.cor : null;
+    const falta = e ? Math.max(0, alvo - esc) : null;
+    // Correios precisa guardar a venda do site dos próximos RESERVA dias. Se não dá para os dois, divide o estoque total
+    // na proporção da venda de cada canal (ML × site); peça que não vende no ML fica nos Correios.
+    const sd = site.get(k) || 0, reserva = Math.ceil(sd * RESERVA - 0.05);
+    let transf = e ? Math.min(cor, falta) : null, dividido = false;
+    if (e && transf > 0 && cor - transf < reserva) {
+      const tot = esc + cor, mlD = v > 0 ? ritmo * saz * mult : 0;
+      const alvoDiv = mlD + sd > 0 ? Math.round(tot * mlD / (mlD + sd)) : 0;
+      transf = Math.max(0, Math.min(transf, alvoDiv - esc, cor - Math.min(reserva, Math.max(0, tot - alvoDiv))));
+      dividido = true;
+    }
+    const mlDia = ritmo * saz * mult, diasEsc = mlDia > 0 && v > 0 ? (esc || 0) / mlDia : null;
+    return { k, sd, mlDia, diasEsc, reserva, dividido, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
+  });
+  const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
+  const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
+  rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const ate = addDias(addDias(hojeEst, -1), N);
+    rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
+    return { rows, saz, mult, ini, fim, ate, hoje: hojeEst, N, RESERVA, AN, MIN, MIN_VENDA };
+  }
+
+  raiz.Previsao = { REGRAS, calcula, transferenciaML, ativosDe, comBling, loja, pecas, addMes, diasNoMes, addDias };
   if (typeof module !== 'undefined') module.exports = raiz.Previsao;
 })(typeof window !== 'undefined' ? window : globalThis);

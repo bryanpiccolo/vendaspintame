@@ -350,66 +350,15 @@
     const B = DADOS.estoque_bling, M = DADOS.ml_vendas;
     if (!B || !B.depositos || !M || !Array.isArray(M.pedidos)) { card.hidden = true; return; }
     card.hidden = false;
-    const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
-    const hojeEst = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(B.gerado_em));
     if (!st.mlN) st.mlN = 30; // padrão: 30 dias de cobertura no escritório
-    const N = st.mlN;
+    const N = st.mlN, RESERVA = st.mlRes;
     document.getElementById('est-ml-dias').value = N;
-    // 28 dias de venda do ML até o último dia completo do arquivo
-    const fim = M.ate || ref, ini = P.addDias(fim, -27);
-    const v28 = new Map(), v7 = new Map(), nome = new Map(), ini7 = P.addDias(fim, -6);
-    for (const p of M.pedidos) {
-      if (p.data < ini || p.data > fim) continue;
-      for (const [c, q, d] of p.itens) { const k = pl(c); if (!k) continue; v28.set(k, (v28.get(k) || 0) + q); if (p.data >= ini7) v7.set(k, (v7.get(k) || 0) + q); if (!nome.has(k)) nome.set(k, d); }
-    }
-    // estoque por depósito de cada código (as variantes de 6 e 12 canetinhas apontam para a mesma peça)
-    const est = new Map();
-    for (const x of B.itens) { const k = x[6] && pl(x[6]); if (!k || x[4] == null || est.has(k)) continue; est.set(k, { esc: x[4], cor: x[5], prod: x[0], var: x[1] }); }
-    // sazonalidade: venda prevista da loja por dia nos próximos N dias ÷ venda real por dia nos 28 dias do ML
-    const real = (DADOS.diario_total || []).filter((d) => d.day >= ini && d.day <= fim).reduce((a, d) => a + (d.net_items_sold || 0), 0) / 28;
-    const prevLoja = R.dias.slice(0, N).reduce((a, d) => a + d.valor, 0) / Math.max(1, Math.min(N, R.dias.length));
-    const saz = real > 0 ? Math.max(0.5, Math.min(3, prevLoja / real)) : 1;
-    const mult = 1 + P.REGRAS.ousadia;
-    // mínimo no escritório: 2 de cada peça/tamanho; 3 se vendeu no ML nos 28 dias (ou a previsão, se for maior)
-    const MIN = 2, MIN_VENDA = 3;
-    const limpa = (e) => (e.prod.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x)).join(' ') : '')).trim();
-    // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
-    const FORA_MIN = /^copo|^livro|^kit de \d+ canetinhas|embalagem|envelope/i;
-    // sortimento do ML: códigos da planilha de anúncios do ML (aba Precificação; código "pai" vale para todos os tamanhos)
-    // + tudo que já vendeu no ML. O que não está no ML não entra.
-    const AN = DADOS.ml_anuncios || (DADOS.precos && DADOS.precos.listings && DADOS.precos.listings.ml) || null;
-    const anuncios = AN && AN.items ? Object.keys(AN.items).map(pl).filter(Boolean) : [];
-    const vendeuML = new Set(); for (const p of M.pedidos) for (const [c] of p.itens) vendeuML.add(pl(c));
-    const noML = (k) => vendeuML.has(k) || anuncios.some((a) => k === a || (k.startsWith(a) && /^\d{2}$|^(PP|P|M|G|GG)$/.test(k.slice(a.length))));
-    const cods = new Set([...v28.keys(), ...[...est.keys()].filter((k) => noML(k) && !FORA_MIN.test(est.get(k).prod))]);
-    // venda do site por dia em cada código (a previsão da aba; o site sai dos Correios)
-    const site = new Map();
-    for (const i of R.itens) { const c = i.codigos && i.codigos.length === 1 ? pl(i.codigos[0]) : null; if (c) site.set(c, (site.get(c) || 0) + (i.diaria30 || 0)); }
-    const RESERVA = st.mlRes; // dias de venda do site que os Correios precisam guardar (padrão 30)
     document.getElementById('est-ml-reserva').value = RESERVA;
-    let rows = [...cods].map((k) => {
-      const e = est.get(k) || null, v = v28.get(k) || 0;
-      // ritmo: a média dos 28 dias, ou, se acelerou, a média com a última semana contando em dobro (o estoque sobe junto)
-      const w = v7.get(k) || 0, ritmo = Math.max(v / 28, (v + w) / 35), subiu = w / 7 > v / 28 * 1.2 && w >= 2;
-      const prev = ritmo * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.ceil(prev - 0.05));
-      const esc = e ? e.esc : null, cor = e ? e.cor : null;
-      const falta = e ? Math.max(0, alvo - esc) : null;
-      // Correios precisa guardar a venda do site dos próximos RESERVA dias. Se não dá para os dois, divide o estoque total
-      // na proporção da venda de cada canal (ML × site); peça que não vende no ML fica nos Correios.
-      const sd = site.get(k) || 0, reserva = Math.ceil(sd * RESERVA - 0.05);
-      let transf = e ? Math.min(cor, falta) : null, dividido = false;
-      if (e && transf > 0 && cor - transf < reserva) {
-        const tot = esc + cor, mlD = v > 0 ? ritmo * saz * mult : 0;
-        const alvoDiv = mlD + sd > 0 ? Math.round(tot * mlD / (mlD + sd)) : 0;
-        transf = Math.max(0, Math.min(transf, alvoDiv - esc, cor - Math.min(reserva, Math.max(0, tot - alvoDiv))));
-        dividido = true;
-      }
-      return { k, sd, reserva, dividido, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
-    });
+    const T = P.transferenciaML(DADOS, R, { dias: N, reserva: RESERVA });
+    const { saz, mult, ini, fim, ate, AN, MIN, MIN_VENDA } = T;
+    let rows = T.rows;
     const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
     const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
-    rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
-    const ate = P.addDias(P.addDias(hojeEst, -1), N);
     const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Mínimo no escritório', 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
     document.querySelector('#est-ml thead tr').replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
     const body = rows.map((r) => {
