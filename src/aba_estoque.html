@@ -19,6 +19,9 @@
 .pm-cob i { display: inline-block; height: 6px; border-radius: 3px; background: var(--serie-1, #3b6fd8); opacity: .75; }
 .pm-ml-resumo { margin: 0 0 var(--cds-gap-sm); font-size: var(--cds-font-size-body, 0.95rem); }
 .pm-ml-resumo strong { font-weight: var(--cds-font-weight-medium); }
+.pm-copiar { font: inherit; font-size: var(--cds-font-size-caption); padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
+.pm-copiar:hover { background: color-mix(in srgb, var(--color-fg) 6%, var(--color-panel)); }
+.pm-copia-txt { width: 100%; min-height: 12rem; margin-top: var(--cds-gap-sm); font: inherit; font-size: 0.85rem; padding: 0.5rem; border: 1px solid var(--color-border-line); border-radius: 6px; background: var(--color-panel); color: var(--color-fg); }
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
   <div class="pm-controls">
@@ -83,6 +86,8 @@
       
     </div>
     <p class="pm-ml-resumo" id="est-ml-resumo"></p>
+    <div class="pm-tools"><button type="button" class="pm-copiar" id="est-ml-copiar">Copiar lista para o WhatsApp</button><span class="pm-note" id="est-ml-copiado" aria-live="polite"></span></div>
+    <textarea id="est-ml-texto" class="pm-copia-txt" readonly hidden></textarea>
     <div class="pm-tablebox">
       <table class="pm-table" id="est-ml"><thead><tr></tr></thead><tbody></tbody></table>
     </div>

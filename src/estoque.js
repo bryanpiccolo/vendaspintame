@@ -428,6 +428,11 @@
     });
     if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já está no mínimo.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
     document.querySelector('#est-ml tbody').replaceChildren(...body);
+    // texto para o WhatsApp: produto com tamanho e quantidade a transferir
+    const curtoNome = (n) => n.replace(/\s*(Tam\.?|Tamanho)\s*:\s*/gi, ' ').replace(/Cor( Ribana)?\s*:\s*/gi, '').replace(/;/g, ' ').replace(/\s+/g, ' ').trim();
+    const lista = rows.filter((r) => r.transf > 0).map((r) => [curtoNome(r.nome), r.transf]).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+    st.mlTexto = lista.length ? `*Transferir Correios → Escritório* (cobre o ML até ${dataCurta(ate)})\n\n` + lista.map(([n, q]) => `${n} — ${q}`).join('\n') + `\n\n*Total: ${int.format(lista.reduce((a, x) => a + x[1], 0))} peças*` : 'Nada a transferir dos Correios para o escritório.';
+    document.getElementById('est-ml-texto').hidden = true; document.getElementById('est-ml-copiado').textContent = '';
     const res = document.getElementById('est-ml-resumo'); res.replaceChildren();
     res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (divs.length ? ' ' + divs.length + (divs.length === 1 ? ' peça foi dividida' : ' peças foram divididas') + ' com o site porque os Correios não têm o suficiente para os dois canais.' : '') + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
     const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
@@ -455,6 +460,14 @@
   document.getElementById('est-promo-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.pv = b.dataset.v; guarda.grava('pvisao', st.pv); drawPromo(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });
   document.getElementById('est-ml-reserva').addEventListener('change', (e) => { const n = Math.round(+e.target.value); if (n >= 0 && n <= 120) { st.mlRes = n; drawML(); } });
+  document.getElementById('est-ml-copiar').addEventListener('click', async () => {
+    const t = st.mlTexto || '', msg = document.getElementById('est-ml-copiado'), ta = document.getElementById('est-ml-texto');
+    let ok = false;
+    try { await navigator.clipboard.writeText(t); ok = true; } catch (e) { /* sem acesso à área de transferência */ }
+    if (!ok) { try { ta.value = t; ta.hidden = false; ta.select(); ok = document.execCommand('copy'); } catch (e) { ok = false; } }
+    if (ok) { msg.textContent = 'Copiado! É só colar no WhatsApp.'; ta.hidden = true; }
+    else { ta.value = t; ta.hidden = false; ta.focus(); ta.select(); msg.textContent = 'Não deu para copiar sozinho: o texto está selecionado abaixo, copie com Ctrl+C (ou segure e copie no celular).'; }
+  });
   document.getElementById('est-ml-dias').addEventListener('change', (e) => { const n = Math.round(+e.target.value); if (n >= 1 && n <= 60) { st.mlN = n; drawML(); } });
   document.getElementById('est-busca').addEventListener('input', (e) => { st.q = e.target.value.trim().toLowerCase(); drawTabela(); });
   document.getElementById('abas').addEventListener('click', () => setTimeout(desenha, 0));
