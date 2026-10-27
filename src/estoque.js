@@ -371,39 +371,47 @@
     const prevLoja = R.dias.slice(0, N).reduce((a, d) => a + d.valor, 0) / Math.max(1, Math.min(N, R.dias.length));
     const saz = real > 0 ? Math.max(0.5, Math.min(3, prevLoja / real)) : 1;
     const mult = 1 + P.REGRAS.ousadia;
-    let rows = [...v28.entries()].map(([k, v]) => {
-      const e = est.get(k) || null;
-      const prev = (v / 28) * saz * mult * N, alvo = Math.max(1, Math.round(prev));
+    // mínimo no escritório: 2 de cada peça/tamanho; 3 se vendeu no ML nos 28 dias (ou a previsão, se for maior)
+    const MIN = 2, MIN_VENDA = 3;
+    const limpa = (e) => (e.prod.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x)).join(' ') : '')).trim();
+    // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
+    const FORA_MIN = /^copo|^livro|^kit de \d+ canetinhas|embalagem|envelope/i;
+    const cods = new Set([...v28.keys(), ...[...est.entries()].filter(([, e]) => e.esc + e.cor > 0 && !FORA_MIN.test(e.prod)).map(([k]) => k)]);
+    let rows = [...cods].map((k) => {
+      const e = est.get(k) || null, v = v28.get(k) || 0;
+      const prev = (v / 28) * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.round(prev));
       const esc = e ? e.esc : null, cor = e ? e.cor : null;
       const falta = e ? Math.max(0, alvo - esc) : null;
       const transf = e ? Math.min(cor, falta) : null;
-      return { k, nome: (nome.get(k) || (e ? e.prod + ' ' + e.var : k)).replace(/\s+/g, ' ').trim(), v, prev, alvo, esc, cor, transf, curto: e ? Math.max(0, falta - cor) : null };
+      return { k, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
     });
     const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
     const semTudo = rows.filter((r) => r.curto > 0);
     if (st.mlF === 'transferir') rows = rows.filter((r) => r.transf > 0 || r.curto > 0);
+    else rows = rows.filter((r) => r.v > 0 || r.esc != null);
     rows.sort((a, b) => (b.transf || 0) - (a.transf || 0) || (b.curto || 0) - (a.curto || 0) || b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
     const ate = P.addDias(P.addDias(hojeEst, -1), N);
-    const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
+    const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Mínimo no escritório', 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
     document.querySelector('#est-ml thead tr').replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
     const body = rows.map((r) => {
       const tr = el('tr');
       const tdN = el('td', 'pm-txt', r.nome); tdN.appendChild(el('small', 'pm-sub', r.k));
-      const tdP = el('td', '', (r.prev < 10 ? r.prev.toFixed(1).replace('.', ',') : int.format(r.prev))); tdP.appendChild(el('small', 'pm-sub', 'deixar ' + int.format(r.alvo) + ' no escritório'));
+      const tdP = el('td', '', r.v > 0 ? (r.prev < 10 ? r.prev.toFixed(1).replace('.', ',') : int.format(r.prev)) : '—');
+      const tdM = el('td', '', int.format(r.alvo)); tdM.appendChild(el('small', 'pm-sub', r.alvo > (r.v > 0 ? MIN_VENDA : MIN) ? 'pela previsão' : r.v > 0 ? 'vendeu no ML' : 'sem venda no ML'));
       const tdE = el('td', '', r.esc == null ? '—' : int.format(r.esc)); if (r.esc != null && r.esc < r.alvo) tdE.classList.add(r.esc === 0 ? 'pm-bad' : 'pm-warn');
       const tdC = el('td', '', r.cor == null ? '—' : int.format(r.cor));
       const tdT = el('td', '', r.transf == null ? 'sem dado no Bling' : r.transf > 0 ? int.format(r.transf) : '—'); if (r.transf > 0) tdT.style.fontWeight = 'var(--cds-font-weight-medium)';
       if (r.curto > 0) { const s = el('small', 'pm-sub pm-bad', r.cor === 0 && r.esc === 0 ? 'sem estoque nos dois' : 'faltam ' + int.format(r.curto) + ' (Correios não tem)'); tdT.appendChild(s); }
-      tr.append(tdN, el('td', '', int.format(r.v)), tdP, tdE, tdC, tdT);
+      tr.append(tdN, el('td', '', r.v ? int.format(r.v) : '—'), tdP, tdM, tdE, tdC, tdT);
       return tr;
     });
-    if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já cobre a previsão.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
+    if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já está no mínimo.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
     document.querySelector('#est-ml tbody').replaceChildren(...body);
     const res = document.getElementById('est-ml-resumo'); res.replaceChildren();
-    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' códigos, para cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
+    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
     const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
     document.getElementById('est-ml-nota').textContent = `O escritório abastece as vendas do Mercado Livre; o resto do estoque fica nos Correios (Log + Floripa). Estoque por depósito lido no Bling em ${lido}. Venda do ML: pedidos da loja Mercado Livre no Bling de ${dataCurta(ini)} a ${dataCurta(fim)} (sem cancelados).`;
-    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia nos últimos 28 dias × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Deixar no escritório = previsão arredondada (pelo menos 1 de cada peça que vende no ML). Transferir = o que falta no escritório, até o que existe nos Correios. Só entram peças vendidas no ML nos últimos 28 dias.`;
+    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia nos últimos 28 dias × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; ou a previsão arredondada, se for maior. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Entram todas as peças com estoque no Bling (as de 6 e 12 canetinhas contam como uma).`;
   }
   function janela() {
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
