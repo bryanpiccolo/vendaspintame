@@ -352,7 +352,7 @@
     card.hidden = false;
     const pl = (s) => String(s == null ? '' : s).replace(/[\s\-_./]/g, '').toUpperCase();
     const hojeEst = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(B.gerado_em));
-    if (!st.mlN) st.mlN = diasAteDomingo(P.addDias(hojeEst, -1));
+    if (!st.mlN) st.mlN = 30; // padrão: 30 dias de cobertura no escritório
     const N = st.mlN;
     document.getElementById('est-ml-dias').value = N;
     pressed('#est-ml-filtro', 'f', st.mlF);
@@ -384,8 +384,8 @@
     document.getElementById('est-ml-reserva').value = RESERVA;
     let rows = [...cods].map((k) => {
       const e = est.get(k) || null, v = v28.get(k) || 0;
-      // ritmo: o maior entre a média dos 28 dias e a da última semana (se acelerou, o estoque sobe junto)
-      const w = v7.get(k) || 0, ritmo = Math.max(v / 28, w / 7), subiu = w / 7 > v / 28 * 1.2 && w >= 2;
+      // ritmo: a média dos 28 dias, ou, se acelerou, a média com a última semana contando em dobro (o estoque sobe junto)
+      const w = v7.get(k) || 0, ritmo = Math.max(v / 28, (v + w) / 35), subiu = w / 7 > v / 28 * 1.2 && w >= 2;
       const prev = ritmo * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.ceil(prev - 0.05));
       const esc = e ? e.esc : null, cor = e ? e.cor : null;
       const falta = e ? Math.max(0, alvo - esc) : null;
@@ -429,7 +429,7 @@
     res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (divs.length ? ' ' + divs.length + (divs.length === 1 ? ' peça foi dividida' : ' peças foram divididas') + ' com o site porque os Correios não têm o suficiente para os dois canais.' : '') + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
     const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
     document.getElementById('est-ml-nota').textContent = `O escritório abastece as vendas do Mercado Livre; o resto do estoque fica nos Correios (Log + Floripa). Estoque por depósito lido no Bling em ${lido}. Venda do ML: pedidos da loja Mercado Livre no Bling de ${dataCurta(ini)} a ${dataCurta(fim)} (sem cancelados).`;
-    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia no ML (a maior entre a média dos últimos 28 dias e a dos últimos 7, para pegar o que está acelerando) × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; ou a previsão arredondada para cima, se for maior: quem tende a vender mais fica com mais no escritório. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Os Correios guardam a venda prevista do site para ${RESERVA} dias (cobertura do site); quando o estoque não dá para os dois canais, ele é dividido na proporção da venda de cada um (ML × site), e o que não vende no ML fica para o site. Entram todas as peças com estoque no Bling (as de 6 e 12 canetinhas contam como uma).`;
+    document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia no ML (média dos últimos 28 dias; se a última semana vendeu mais, ela conta em dobro, para pegar o que está acelerando) × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; ou a previsão arredondada para cima, se for maior: quem tende a vender mais fica com mais no escritório. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Os Correios guardam a venda prevista do site para ${RESERVA} dias (cobertura do site); quando o estoque não dá para os dois canais, ele é dividido na proporção da venda de cada um (ML × site), e o que não vende no ML fica para o site. Entram todas as peças com estoque no Bling (as de 6 e 12 canetinhas contam como uma).`;
   }
   function janela() {
     document.getElementById('est-janela').textContent = `Previsão feita com a venda do site fechada até ${dataBR(ref)} e o estoque do fim desse dia.`;
