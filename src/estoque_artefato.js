@@ -26,8 +26,8 @@
     if (mlv.status === 'loading') return;
     let ml = null;
     if (mlv.status === 'ok') { try { const t = linhas(mlv.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ml = t ? JSON.parse(t) : null; } catch (e) { ml = null; } }
-    let ativos = null;
-    if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ativos = t ? window.Previsao.ativosDe(JSON.parse(t).produtos) : null; } catch (e) { ativos = null; } }
+    let ativos = null, mlAnuncios = null;
+    if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); if (t) { const J = JSON.parse(t); ativos = window.Previsao.ativosDe(J.produtos); mlAnuncios = J.listings && J.listings.ml ? J.listings.ml : null; } } catch (e) { ativos = null; } }
     const [mensal, diario, pecas, est] = ds.map((d) => linhas(d.data));
     const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0, semEst ? semEst.length : -1, bling ? bling.gerado_em : '', ml ? ml.gerado_em : ''].join('|');
     if (nova === chave) return;
@@ -50,6 +50,7 @@
       dias_sem_estoque: semEst,
       estoque_bling: bling,
       ml_vendas: ml,
+      ml_anuncios: mlAnuncios,
     });
   };
 })();
