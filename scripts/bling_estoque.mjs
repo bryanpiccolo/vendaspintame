@@ -16,6 +16,7 @@
 //   node scripts/bling_estoque.mjs --ids <pasta-das-respostas>
 //       imprime lotes de IDs do Bling: cada lote vai numa chamada getStockBalance (idsProdutos = o lote),
 //       que devolve o saldo de cada depósito (Escritório e Correios / Log + Floripa).
+//   (SKU sem cadastro no Bling fica com estoque 0: o estoque certo é o do Bling)
 //   node scripts/bling_estoque.mjs <pasta-das-respostas> <precos.json> <saída.json> [<pasta-saldos-por-depósito>]
 //       <pasta-das-respostas>: as respostas do listProducts (uma por arquivo .json/.txt, {data:[{codigo, estoque:{saldoVirtualTotal}}]})
 //       Recusa (sai com erro) se faltar CAN06 ou se menos de 60% dos códigos voltarem: aí o painel segue com o estoque do Shopify.
@@ -110,7 +111,7 @@ for (const p of produtosDe(precos)) {
       if (vals.some((v) => v == null)) { fonte = /^K/.test(pl(sku)) ? 'peça não ativa no Bling' : 'sem cadastro no Bling'; }
       else q = Math.max(0, Math.min(...vals));
     }
-    if (fonte === 'sem cadastro no Bling') { semPar.push(sku); continue; } // fica o estoque do Shopify
+    if (fonte === 'sem cadastro no Bling') semPar.push(sku); // o Bling é a fonte do estoque: sem cadastro lá = sem estoque (0)
     const [esc, cor] = fonte === 'bling' ? dep(cods) : [0, 0];
     itens.push([p.t, vt, sku, q, esc, cor, cods && cods.length === 1 ? pl(cods[0]) : null]);
     if (fonte !== 'bling') semPeca.push(sku); // kit cuja peça não existe (ou não está ativa) no Bling: estoque 0
@@ -123,4 +124,4 @@ const vazios = lotes(precos).map((l, i) => (l.some((c) => saldo.has(pl(c))) ? nu
 if (vazios.length) throw new Error(`Nenhum código do lote ${vazios.join(', ')} voltou do Bling: confira se a resposta desse lote foi salva.`);
 if (pastaDep && porDep.size < achados * 0.8) throw new Error(`Só ${porDep.size} de ${achados} códigos vieram com saldo por depósito: confira se todos os lotes do getStockBalance foram salvos.`);
 writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), fonte: 'Bling', campos: ['product_title', 'product_variant_title', 'product_variant_sku', 'ending_inventory_units', 'estoque_escritorio', 'estoque_correios', 'codigo_bling'], depositos: pastaDep ? { escritorio: 'Escritório', correios: 'Correios (Log + Floripa)' } : null, itens, sem_par: semPar, sem_peca: semPeca }));
-console.log(`ok: ${itens.length} variantes com estoque do Bling (${achados} de ${pedidos.size} códigos encontrados; ${semPeca.length} kits sem a peça no Bling ficam com 0); ${semPar.length} SKUs sem cadastro no Bling ficam com o estoque do Shopify`);
+console.log(`ok: ${itens.length} variantes com estoque do Bling (${achados} de ${pedidos.size} códigos encontrados; ${semPeca.length} kits sem a peça no Bling ficam com 0); ${semPar.length} SKUs sem cadastro no Bling ficam com 0`);
