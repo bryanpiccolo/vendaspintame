@@ -351,7 +351,12 @@
   const mult = 1 + REGRAS.ousadia;
   // mínimo no escritório: 2 de cada peça/tamanho; 3 se vendeu no ML nos 28 dias (ou a previsão, se for maior)
   const MIN = 2, MIN_VENDA = 3;
-  const limpa = (e) => (e.prod.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x)).join(' ') : '')).trim();
+  // peças que entram no sortimento do ML sem estar na planilha de anúncios, com o estoque inicial no escritório por tamanho
+  // (pedido da Melina em 28/10: Tangram, Arvoredo, Sorvete, Dinos e Obras de Arte)
+  const INICIAL = { '02': 2, '04': 3, '06': 3, '08': 3, '10': 2 };
+  const ML_EXTRA = { VETA: INICIAL, CATA: INICIAL, CAAR: INICIAL, CASOR: INICIAL, CADI: INICIAL, CAOA: INICIAL };
+  const minExtra = (k) => { for (const p in ML_EXTRA) if (k.startsWith(p) && ML_EXTRA[p][k.slice(p.length)] != null) return ML_EXTRA[p][k.slice(p.length)]; return null; };
+  const limpa = (e) => (e.prod.replace(/ Infantil para (Colorir|Pintar)| para (Colorir|Pintar)| Infantil|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x, i) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x) && !(i > 0 && /^(0?6|12)$/.test(x))).join(' ') : '')).trim();
   // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
   const FORA_MIN = /^copo|^livro|^kit de \d+ canetinhas|embalagem|envelope/i;
   // sortimento do ML: códigos da planilha de anúncios do ML (aba Precificação; código "pai" vale para todos os tamanhos)
@@ -359,7 +364,7 @@
   const AN = D.ml_anuncios || (D.precos && D.precos.listings && D.precos.listings.ml) || null;
   const anuncios = AN && AN.items ? Object.keys(AN.items).map(pl).filter(Boolean) : [];
   const vendeuML = new Set(); for (const p of M.pedidos) for (const [c] of p.itens) vendeuML.add(pl(c));
-  const noML = (k) => vendeuML.has(k) || anuncios.some((a) => k === a || (k.startsWith(a) && /^\d{2}$|^(PP|P|M|G|GG)$/.test(k.slice(a.length))));
+  const noML = (k) => vendeuML.has(k) || minExtra(k) != null || anuncios.some((a) => k === a || (k.startsWith(a) && /^\d{2}$|^(PP|P|M|G|GG)$/.test(k.slice(a.length))));
   const cods = new Set([...v28.keys(), ...[...est.keys()].filter((k) => noML(k) && !FORA_MIN.test(est.get(k).prod))]);
   // venda do site por dia em cada código (a previsão da aba; o site sai dos Correios)
   const site = new Map();
@@ -368,7 +373,7 @@
     const e = est.get(k) || null, v = v28.get(k) || 0;
     // ritmo: a média dos 28 dias, ou, se acelerou, a média com a última semana contando em dobro (o estoque sobe junto)
     const w = v7.get(k) || 0, ritmo = Math.max(v / 28, (v + w) / 35), subiu = w / 7 > v / 28 * 1.2 && w >= 2;
-    const prev = ritmo * saz * mult * N, alvo = Math.max(v > 0 ? MIN_VENDA : MIN, Math.ceil(prev - 0.05));
+    const prev = ritmo * saz * mult * N, minBase = Math.max(v > 0 ? MIN_VENDA : MIN, minExtra(k) || 0), alvo = Math.max(minBase, Math.ceil(prev - 0.05));
     const esc = e ? e.esc : null, cor = e ? e.cor : null;
     const falta = e ? Math.max(0, alvo - esc) : null;
     // Correios precisa guardar a venda do site dos próximos RESERVA dias. Se não dá para os dois, divide o estoque total
@@ -376,13 +381,13 @@
     const sd = site.get(k) || 0, reserva = Math.ceil(sd * RESERVA - 0.05);
     let transf = e ? Math.min(cor, falta) : null, dividido = false;
     if (e && transf > 0 && cor - transf < reserva) {
-      const tot = esc + cor, mlD = v > 0 ? ritmo * saz * mult : 0;
+      const tot = esc + cor, mlD = v > 0 ? ritmo * saz * mult : (minExtra(k) != null ? minExtra(k) / N : 0);
       const alvoDiv = mlD + sd > 0 ? Math.round(tot * mlD / (mlD + sd)) : 0;
       transf = Math.max(0, Math.min(transf, alvoDiv - esc, cor - Math.min(reserva, Math.max(0, tot - alvoDiv))));
       dividido = true;
     }
     const mlDia = ritmo * saz * mult, diasEsc = mlDia > 0 && v > 0 ? (esc || 0) / mlDia : null;
-    return { k, sd, mlDia, diasEsc, reserva, dividido, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
+    return { k, minBase, novoML: minExtra(k) != null && v === 0, sd, mlDia, diasEsc, reserva, dividido, nome: (nome.get(k) || (e ? limpa(e) : k)).replace(/\s+/g, ' ').trim(), v, w, subiu, prev, alvo, esc, cor, transf, curto: e && v > 0 ? Math.max(0, falta - cor) : 0 };
   });
   const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
   const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
