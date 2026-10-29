@@ -46,7 +46,7 @@
   };
   const estampa = (t) => {
     const x = String(t || '').toLowerCase();
-    const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Arvoredo'], ['amarelinho', 'Copa do Mundo / Futebol']];
+    const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol']];
     for (const [k, v] of regras) if (x.includes(k)) return v;
     return 'Sem estampa';
   };
