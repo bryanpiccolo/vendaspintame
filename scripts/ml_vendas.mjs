@@ -1,5 +1,5 @@
 // Vendas do Mercado Livre pelo Bling (pedidos da loja do ML), para a projeção de transferência Correios -> Escritório.
-// Guarda só o necessário de cada pedido: id, data, número na loja, situação e itens (código, quantidade, descrição).
+// Guarda só o necessário de cada pedido: id, data, número na loja, situação, valor total e itens (código, quantidade, descrição).
 // Nada de nome, documento ou endereço do comprador.
 //
 // O histórico é cumulativo: cada execução lê o arquivo anterior e busca só os pedidos novos.
@@ -12,6 +12,7 @@
 //       no arquivo anterior (cancelados ficam fora). Cada ID vai numa chamada getSalesOrder.
 //   node scripts/ml_vendas.mjs <anterior.json|-> <pasta-dos-pedidos> <saída.json>
 //       <pasta-dos-pedidos>: respostas do getSalesOrder (uma por arquivo). Junta com o anterior e grava a saída.
+//       Respostas do listSalesOrders (com o campo total) na mesma pasta completam o valor dos pedidos já guardados.
 //   node scripts/ml_vendas.mjs --artefato <ml_vendas.json> <saída.json>   (arquivo do dataset "ml_vendas" do painel do Claude)
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -59,11 +60,15 @@ const [, , arqAnt, pasta, saida] = process.argv;
 if (!arqAnt || !pasta || !saida) { console.error('Uso: node scripts/ml_vendas.mjs <anterior.json|-> <pasta-dos-pedidos> <saída.json>'); process.exit(1); }
 const porId = new Map(anterior(arqAnt).map((p) => [String(p.id), p]));
 let novos = 0;
+const listas = [];
 for (const o of lePasta(pasta)) {
-  if ((o.loja && o.loja.id) !== LOJA_ML || !Array.isArray(o.itens)) continue;
+  if ((o.loja && o.loja.id) !== LOJA_ML) continue;
+  // resposta do listSalesOrders (sem itens): só serve para completar o valor do pedido (total) dos que já estão guardados
+  if (!Array.isArray(o.itens)) { listas.push(o); continue; }
   if (!porId.has(String(o.id))) novos++;
-  porId.set(String(o.id), { id: o.id, data: String(o.data).slice(0, 10), numeroLoja: o.numeroLoja || null, situacao: o.situacao && o.situacao.id, itens: o.itens.map((i) => [String(i.codigo || ''), Number(i.quantidade) || 0, String(i.descricao || '')]) });
+  porId.set(String(o.id), { id: o.id, data: String(o.data).slice(0, 10), numeroLoja: o.numeroLoja || null, situacao: o.situacao && o.situacao.id, total: o.total != null ? Number(o.total) : null, itens: o.itens.map((i) => [String(i.codigo || ''), Number(i.quantidade) || 0, String(i.descricao || '')]) });
 }
+for (const o of listas) { const p = porId.get(String(o.id)); if (p && o.total != null) { p.total = Number(o.total); if (o.situacao) p.situacao = o.situacao.id; } }
 const corte = addDias(hoje(), -DIAS_GUARDA);
 // o mesmo pedido do ML às vezes entra duas vezes no Bling (mesmo número na loja): conta uma vez
 const vistos = new Set();

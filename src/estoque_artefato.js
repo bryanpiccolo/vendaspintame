@@ -26,6 +26,8 @@
     if (mlv.status === 'loading') return;
     let ml = null;
     if (mlv.status === 'ok') { try { const t = linhas(mlv.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ml = t ? JSON.parse(t) : null; } catch (e) { ml = null; } }
+    // gráfico mês a mês: a venda do Mercado Livre entra em amarelo em cima da do site
+    if (ml && window.__mlVendas !== ml) { window.__mlVendas = ml; window.dispatchEvent(new Event('ml-vendas')); }
     let ativos = null, mlAnuncios = null;
     if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); if (t) { const J = JSON.parse(t); ativos = window.Previsao.ativosDe(J.produtos); mlAnuncios = J.listings && J.listings.ml ? J.listings.ml : null; } } catch (e) { ativos = null; } }
     const [mensal, diario, pecas, est] = ds.map((d) => linhas(d.data));

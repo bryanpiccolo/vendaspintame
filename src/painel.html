@@ -712,7 +712,22 @@ dash.calc('giro', {
     });
   }
 
+  // venda do Mercado Livre por mês (pedidos da loja ML no Bling; arquivo ml_vendas): soma em amarelo em cima da barra do site
+  function mlMensal() {
+    const M = window.__mlVendas || (typeof DADOS !== 'undefined' && DADOS && DADOS.ml_vendas) || null, o = {};
+    if (!M || !Array.isArray(M.pedidos)) return o;
+    for (const p of M.pedidos) {
+      if (M.ate && p.data > M.ate) continue;
+      const k = p.data.slice(0, 7), r = o[k] || (o[k] = { gmv: 0, receita: 0, pecas: 0 });
+      r.gmv += +p.total || 0; r.receita += +p.total || 0; r.pecas += (p.itens || []).reduce((a, i) => a + (+i[1] || 0), 0);
+    }
+    return o;
+  }
+  let ultimoR = null;
+  window.addEventListener('ml-vendas', () => { if (ultimoR) drawChart(ultimoR); });
   function drawChart(R) {
+    ultimoR = R;
+    const ML = mlMensal(), cML = '#f2b705';
     const box = document.getElementById('grafico-mensal');
     box.replaceChildren();
     const y = st.gy, yAnt = String(+y - 1);
@@ -720,14 +735,14 @@ dash.calc('giro', {
     document.getElementById('grafico-titulo').textContent = nomes[st.m] + ' mês a mês: ' + y + ' contra ' + yAnt;
     const cAtual = dash.colors[0], cAnt = 'var(--cds-chart-muted)';
     const leg = document.getElementById('legenda'); leg.replaceChildren();
-    for (const [c, t] of [[cAnt, yAnt], [cAtual, y + (y === anoAtual ? ' (mês atual parcial)' : '')]]) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); leg.appendChild(s); }
+    for (const [c, t] of [[cAnt, yAnt], [cAtual, y + ' site' + (y === anoAtual ? ' (mês atual parcial)' : '')]].concat(Object.keys(ML).some((k) => k.startsWith(y)) ? [[cML, y + ' Mercado Livre']] : [])) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); leg.appendChild(s); }
     const meses = d3.range(1, 13).map((n) => y + '-' + String(n).padStart(2, '0')).filter((k) => k <= mesAtual);
-    const data = meses.map((k) => { const r = R.find((x) => x.periodo === 'm:' + k); return { k, r, v: r ? r[st.m] : 0, a: r ? r[st.m + '_ant'] : null, d: r ? r['var_' + st.m] : null }; });
+    const data = meses.map((k) => { const r = R.find((x) => x.periodo === 'm:' + k); const ml = ML[k] ? ML[k][st.m] : 0, v = r ? r[st.m] : 0, a = r ? r[st.m + '_ant'] : null; return { k, r, v, ml, t: v + ml, a, d: ml && a ? (v + ml) / a - 1 : (r ? r['var_' + st.m] : null) }; });
     const W = Math.max(300, box.clientWidth), H = 260, mt = 34, mb = 26;
     const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vendas mês a mês contra o ano anterior');
     const x = d3.scaleBand(meses, [0, W]).paddingInner(0.22).paddingOuter(0.05);
     const x2 = d3.scaleBand(['a', 'v'], [0, x.bandwidth()]).padding(0.08);
-    const maxV = d3.max(data, (d) => Math.max(d.v || 0, d.a || 0)) || 1;
+    const maxV = d3.max(data, (d) => Math.max(d.t || 0, d.a || 0)) || 1;
     const yS = d3.scaleLinear([0, maxV], [H - mb, mt]);
     svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', yS(0)).attr('y2', yS(0)).attr('stroke', 'var(--cds-chart-axis)');
     const bw = Math.min(28, x2.bandwidth());
@@ -740,8 +755,10 @@ dash.calc('giro', {
       .attr('rx', 4).attr('fill', color);
     bar('a', (d) => d.a, cAnt);
     bar('v', (d) => d.v, cAtual).attr('stroke', (d) => st.p === 'm:' + d.k ? 'var(--color-fg)' : 'none').attr('stroke-width', 1.5);
+    g.filter((d) => d.ml > 0).append('rect').attr('x', (d) => x(d.k) + off('v')).attr('width', bw)
+      .attr('y', (d) => yS(d.t)).attr('height', (d) => Math.max(1, yS(d.v) - yS(d.t))).attr('rx', 2).attr('fill', cML);
     const showLabels = x.bandwidth() >= 30;
-    g.append('text').attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', (d) => yS(Math.max(d.v || 0, d.a || 0)) - 7)
+    g.append('text').attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', (d) => yS(Math.max(d.t || 0, d.a || 0)) - 7)
       .attr('text-anchor', 'middle').style('font-size', showLabels ? 'var(--cds-font-size-caption)' : '0.62rem').style('font-variant-numeric', 'tabular-nums')
       .attr('fill', (d) => d.d == null ? 'var(--color-fg-muted)' : d.d >= 0 ? 'var(--color-ok)' : 'var(--color-bad)')
       .text((d) => d.d == null ? '' : sPct.format(d.d));
@@ -753,7 +770,7 @@ dash.calc('giro', {
     g.on('mousemove', (ev, d) => {
       tip.replaceChildren();
       const h = document.createElement('div'); h.className = 'pm-tip-h'; h.textContent = cap(nomeMes(d.k, { month: 'long' })) + (d.k === mesAtual ? ' (até ontem, vs. mesmos dias)' : ''); tip.appendChild(h);
-      for (const [c, lab, v] of [[cAtual, y, d.v], [cAnt, yAnt, d.a]]) { const l = document.createElement('div'); const i = document.createElement('i'); i.style.background = c; l.append(i, lab + ': ' + (v == null ? 'sem vendas' : val(v))); tip.appendChild(l); }
+      for (const [c, lab, v] of (d.ml ? [[cAtual, y + ' site', d.v], [cML, y + ' Mercado Livre', d.ml], ['transparent', y + ' total', d.t]] : [[cAtual, y, d.v]]).concat([[cAnt, yAnt, d.a]])) { const l = document.createElement('div'); const i = document.createElement('i'); i.style.background = c; l.append(i, lab + ': ' + (v == null ? 'sem vendas' : val(v))); tip.appendChild(l); }
       if (d.d != null) { const l = document.createElement('div'); l.textContent = 'Variação: ' + sPct.format(d.d); tip.appendChild(l); }
       if (d.r) { const l = document.createElement('div'); l.textContent = 'Margem: ' + fmt('margem_pct', d.r.margem_pct); tip.appendChild(l); }
       tip.hidden = false;
