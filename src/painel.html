@@ -149,7 +149,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <div class="pm-card-head">
       <div>
         <h2 id="grafico-titulo">Mês a mês contra o ano anterior</h2>
-        <p class="pm-note">O número sobre cada par de barras é a variação contra o mesmo mês do ano anterior. No mês atual, a comparação é com os mesmos dias do ano passado. Clique num mês para ver o detalhe dele.</p>
+        <p class="pm-note">O número sobre cada par de barras é a variação do total (site + Mercado Livre) contra o mesmo mês do ano anterior. No mês atual, a comparação é com os mesmos dias do ano passado. Clique num mês para ver o detalhe dele.</p>
       </div>
       <div class="pm-controls">
         <select class="pm-select" id="sel-ano-grafico" aria-label="Ano do gráfico" data-source="periodos"></select>
@@ -727,7 +727,7 @@ dash.calc('giro', {
   window.addEventListener('ml-vendas', () => { if (ultimoR) drawChart(ultimoR); });
   function drawChart(R) {
     ultimoR = R;
-    const ML = mlMensal(), cML = '#f2b705';
+    const ML = mlMensal(), cML = '#f2b705', pct0 = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 });
     const box = document.getElementById('grafico-mensal');
     box.replaceChildren();
     const y = st.gy, yAnt = String(+y - 1);
@@ -735,7 +735,12 @@ dash.calc('giro', {
     document.getElementById('grafico-titulo').textContent = nomes[st.m] + ' mês a mês: ' + y + ' contra ' + yAnt;
     const cAtual = dash.colors[0], cAnt = 'var(--cds-chart-muted)';
     const leg = document.getElementById('legenda'); leg.replaceChildren();
-    for (const [c, t] of [[cAnt, yAnt], [cAtual, y + ' site' + (y === anoAtual ? ' (mês atual parcial)' : '')]].concat(Object.keys(ML).some((k) => k.startsWith(y)) ? [[cML, y + ' Mercado Livre']] : [])) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); leg.appendChild(s); }
+    // participação nos meses em que o Mercado Livre já vendia (a loja do ML começou em set/2026)
+    const mesesML = Object.keys(ML).filter((k) => k.startsWith(y) && k <= mesAtual).sort();
+    const totSite = mesesML.length ? mesesML.reduce((a, k) => { const r = R.find((x) => x.periodo === 'm:' + k); return a + (r ? r[st.m] || 0 : 0); }, 0) : 0;
+    const totML = Object.keys(ML).filter((k) => k.startsWith(y)).reduce((a, k) => a + (ML[k][st.m] || 0), 0);
+    const part = (v) => totSite + totML > 0 ? ' · ' + pct0.format(v / (totSite + totML)) + ' desde ' + nomeMes(mesesML[0], { month: 'short' }).replace('.', '') : '';
+    for (const [c, t] of [[cAnt, yAnt], [cAtual, y + ' site' + (totML ? part(totSite) : '') + (y === anoAtual ? ' (mês atual parcial)' : '')]].concat(totML ? [[cML, y + ' Mercado Livre' + part(totML)]] : [])) { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); leg.appendChild(s); }
     const meses = d3.range(1, 13).map((n) => y + '-' + String(n).padStart(2, '0')).filter((k) => k <= mesAtual);
     const data = meses.map((k) => { const r = R.find((x) => x.periodo === 'm:' + k); const ml = ML[k] ? ML[k][st.m] : 0, v = r ? r[st.m] : 0, a = r ? r[st.m + '_ant'] : null; return { k, r, v, ml, t: v + ml, a, d: ml && a ? (v + ml) / a - 1 : (r ? r['var_' + st.m] : null) }; });
     const W = Math.max(300, box.clientWidth), H = 260, mt = 34, mb = 26;
@@ -770,7 +775,7 @@ dash.calc('giro', {
     g.on('mousemove', (ev, d) => {
       tip.replaceChildren();
       const h = document.createElement('div'); h.className = 'pm-tip-h'; h.textContent = cap(nomeMes(d.k, { month: 'long' })) + (d.k === mesAtual ? ' (até ontem, vs. mesmos dias)' : ''); tip.appendChild(h);
-      for (const [c, lab, v] of (d.ml ? [[cAtual, y + ' site', d.v], [cML, y + ' Mercado Livre', d.ml], ['transparent', y + ' total', d.t]] : [[cAtual, y, d.v]]).concat([[cAnt, yAnt, d.a]])) { const l = document.createElement('div'); const i = document.createElement('i'); i.style.background = c; l.append(i, lab + ': ' + (v == null ? 'sem vendas' : val(v))); tip.appendChild(l); }
+      for (const [c, lab, v] of (d.ml ? [[cAtual, y + ' site', d.v], [cML, y + ' Mercado Livre', d.ml], ['transparent', y + ' total' + (d.t ? ' (site ' + pct0.format(d.v / d.t) + ' · ML ' + pct0.format(d.ml / d.t) + ')' : ''), d.t]] : [[cAtual, y, d.v]]).concat([[cAnt, yAnt, d.a]])) { const l = document.createElement('div'); const i = document.createElement('i'); i.style.background = c; l.append(i, lab + ': ' + (v == null ? 'sem vendas' : val(v))); tip.appendChild(l); }
       if (d.d != null) { const l = document.createElement('div'); l.textContent = 'Variação: ' + sPct.format(d.d); tip.appendChild(l); }
       if (d.r) { const l = document.createElement('div'); l.textContent = 'Margem: ' + fmt('margem_pct', d.r.margem_pct); tip.appendChild(l); }
       tip.hidden = false;
