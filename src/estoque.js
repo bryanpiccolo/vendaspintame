@@ -14,7 +14,7 @@
 
   // Produtos que ficam fora do risco de ruptura e da compra sugerida (nome do produto ou categoria).
   const FORA = [
-    ['Coleção Copa do Mundo (inclui Futebol e kits ⚽)', /copa do mundo|futebol|⚽/i],
+    ['Coleção Copa do Mundo (inclui Futebol, Amarelinho e kits ⚽)', /copa do mundo|futebol|amarelinho|⚽/i],
     ['Camisetas adulto', /camiseta adulto/i],
     ['Camisetas com bolso', /camiseta bolso/i],
     ['Kits de canetinhas', /^kit de \d+ canetinhas/i],

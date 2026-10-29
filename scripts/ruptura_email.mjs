@@ -16,7 +16,7 @@ const Previsao = globalThis.Previsao;
 const NOMES = ['estados', 'diario', 'produtos_hist', 'produtos_rec', 'estoque_ontem', 'dias_sem_estoque'];
 const DIAS_PRE = 14; // pré-ruptura: acaba nos próximos 14 dias
 // Mesmos produtos que ficam fora do risco de ruptura na aba Estoque (src/estoque.js).
-const FORA = [/copa do mundo|futebol|⚽/i, /camiseta adulto/i, /camiseta bolso/i, /^kit de \d+ canetinhas/i, /scrunchie/i, /^cal[cç]a/i, /estojo|lancheira/i, /mochila/i, /bermuda|short/i, /casaco|blus[aã]o|moletom|jaqueta/i, /embalagem|envelope|sacola/i];
+const FORA = [/copa do mundo|futebol|amarelinho|⚽/i, /camiseta adulto/i, /camiseta bolso/i, /^kit de \d+ canetinhas/i, /scrunchie/i, /^cal[cç]a/i, /estojo|lancheira/i, /mochila/i, /bermuda|short/i, /casaco|blus[aã]o|moletom|jaqueta/i, /embalagem|envelope|sacola/i];
 
 const todas = B.consultas();
 if (process.argv[2] === '--consultas') { console.log(JSON.stringify(Object.fromEntries(NOMES.map((n) => [n, todas[n]])), null, 2)); process.exit(0); }
