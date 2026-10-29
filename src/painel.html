@@ -168,7 +168,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <div class="pm-card-head">
       <div>
         <h2 id="mes-ano-titulo">Mês a mês por ano</h2>
-        <p class="pm-note">Cada coluna é um ano. A coluna “vs. ano ant.” compara com o mesmo mês do ano anterior. No mês em andamento, a comparação é com os mesmos dias do ano passado.</p>
+        <p class="pm-note">Cada coluna é um ano. A coluna “vs. ano ant.” compara com o mesmo mês do ano anterior. No mês em andamento, a comparação é com os mesmos dias do ano passado. A partir de set/2026, GMV, receita, peças, pedidos e ticket somam o Mercado Livre (embaixo, site e ML separados); as demais medidas são só do site.</p>
       </div>
       <select class="pm-select pm-metrica-sel" id="sel-metrica-mes-ano" aria-label="Medida"></select>
     </div>
@@ -718,8 +718,8 @@ dash.calc('giro', {
     if (!M || !Array.isArray(M.pedidos)) return o;
     for (const p of M.pedidos) {
       if (M.ate && p.data > M.ate) continue;
-      const k = p.data.slice(0, 7), r = o[k] || (o[k] = { gmv: 0, receita: 0, pecas: 0 });
-      r.gmv += +p.total || 0; r.receita += +p.total || 0; r.pecas += (p.itens || []).reduce((a, i) => a + (+i[1] || 0), 0);
+      const k = p.data.slice(0, 7), r = o[k] || (o[k] = { gmv: 0, receita: 0, pecas: 0, pedidos: 0 });
+      r.pedidos += 1; r.gmv += +p.total || 0; r.receita += +p.total || 0; r.pecas += (p.itens || []).reduce((a, i) => a + (+i[1] || 0), 0);
     }
     return o;
   }
@@ -920,7 +920,12 @@ dash.calc('giro', {
   const cel = (txt, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; return td; };
   const corVar = (f, v) => v == null ? '' : (f === 'devolucoes' || f === 'descontos' || f === 'cmv') ? (v > 0 ? 'pm-down' : v < 0 ? 'pm-up' : '') : (v > 0 ? 'pm-up' : v < 0 ? 'pm-down' : '');
 
+  const ML_TAB = new Set(['gmv', 'receita', 'pecas', 'pedidos', 'ticket']);
+  window.addEventListener('ml-vendas', () => { if (ultimoRMA) drawMesAno(ultimoRMA); });
+  let ultimoRMA = null;
   function drawMesAno(R) {
+    ultimoRMA = R;
+    const MLm = mlMensal();
     const m = st.mm, nome = METRICAS.find((x) => x[0] === m)[1];
     document.getElementById('sel-metrica-mes-ano').value = m;
     document.getElementById('mes-ano-titulo').textContent = nome + ' mês a mês por ano';
@@ -941,6 +946,16 @@ dash.calc('giro', {
       tr.appendChild(cel(n === 13 ? 'Total do ano' : cap(nomeMes('2024-' + mm, { month: 'long' })), 'pm-txt pm-first'));
       anos.forEach((a, i) => {
         const r = by.get(n === 13 ? 'a:' + a : 'm:' + a + '-' + mm);
+        // Mercado Livre: soma ao site nas medidas que existem nos dois canais (pedidos do ML no Bling)
+        const ml = ML_TAB.has(m) ? (n === 13 ? (Object.keys(MLm).some((k) => k.startsWith(a)) ? Object.keys(MLm).filter((k) => k.startsWith(a)).reduce((o, k) => { for (const f in MLm[k]) o[f] = (o[f] || 0) + MLm[k][f]; return o; }, {}) : null) : MLm[a + '-' + mm]) : null;
+        if (ml && r) {
+          const tot = m === 'ticket' ? ((r.gmv || 0) + ml.gmv) / Math.max(1, (r.pedidos || 0) + ml.pedidos) : (r[m] || 0) + (ml[m] || 0);
+          const c = cel(fmt(m, tot), 'pm-sep');
+          const sub = document.createElement('small'); sub.className = 'pm-sub'; sub.textContent = 'site ' + fmt(m, r[m]) + ' · ML ' + fmt(m, m === 'ticket' ? ml.gmv / Math.max(1, ml.pedidos) : ml[m]);
+          c.appendChild(sub); tr.appendChild(c);
+          if (i > 0) { const ant = r[m + '_ant'], v = ant ? tot / ant - 1 : r['var_' + m]; tr.appendChild(cel(v == null ? '' : fmt('var_' + m, v), corVar(m, v))); }
+          return;
+        }
         tr.appendChild(cel(r ? fmt(m, r[m]) : '', 'pm-sep'));
         if (i > 0) { const v = r ? r['var_' + m] : null; tr.appendChild(cel(v == null ? '' : fmt('var_' + m, v), corVar(m, v))); }
       });
