@@ -12,7 +12,7 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-export const CONSULTA = 'query P($first:Int!, $after:String){ products(first:$first, after:$after, query:"status:active"){ pageInfo{hasNextPage endCursor} nodes{ title productType variants(first:100){ nodes{ sku title price inventoryItem{ unitCost{ amount } measurement{ weight{ value unit } } } } } } } }';
+export const CONSULTA = 'query P($first:Int!, $after:String){ products(first:$first, after:$after, query:"status:active OR status:draft OR status:unlisted"){ pageInfo{hasNextPage endCursor} nodes{ title status productType variants(first:100){ nodes{ sku title price inventoryItem{ unitCost{ amount } measurement{ weight{ value unit } } } } } } } }';
 
 if (process.argv[2] === '--consulta') { console.log(CONSULTA); process.exit(0); }
 // --artefato <precos.json> <saída>: o mesmo conteúdo no formato do arquivo do painel do Claude (uma linha {j: JSON})
@@ -30,7 +30,8 @@ function acha(o, d = 0) {
 }
 
 // 1. produtos do Shopify
-const vistos = new Set(), produtos = [];
+// rascunhos e ocultos (status DRAFT/UNLISTED) vão à parte: só aparecem na aba Estoque
+const vistos = new Set(), produtos = [], rascunhos = [];
 const arqs = readdirSync(pastaPag).filter((f) => /\.(json|txt)$/i.test(f)).sort();
 if (!arqs.length) throw new Error('Nenhuma página do Shopify em ' + pastaPag);
 for (const f of arqs) {
@@ -42,6 +43,7 @@ for (const f of arqs) {
     const v = (n.variants?.nodes || []).map((x) => [String(x.sku || '').trim().toUpperCase(), x.title || '', num(x.price), num(x.inventoryItem?.unitCost?.amount), kg(x.inventoryItem?.measurement?.weight)]);
     const k = t + '|' + v.map((x) => x[0]).join(',');
     if (vistos.has(k)) continue; vistos.add(k);
+    if (n.status && n.status !== 'ACTIVE') { if (n.status !== 'ARCHIVED') rascunhos.push({ t, s: n.status, v: v.map((x) => [x[0], x[1]]) }); continue; }
     produtos.push({ t, ty: String(n.productType || '').trim(), v });
   }
 }
@@ -50,7 +52,7 @@ for (const f of arqs) {
 const doc = (col, id) => { const p = path.join(pastaDb, col, id + '.json'); if (!existsSync(p)) return null; const d = JSON.parse(readFileSync(p, 'utf8')); return d && d.data && !d.items && !d.rules ? d.data : d; };
 const col = (c) => { const p = path.join(pastaDb, c); if (!existsSync(p) || !statSync(p).isDirectory()) return {}; return Object.fromEntries(readdirSync(p).filter((f) => f.endsWith('.json')).map((f) => [f.slice(0, -5), doc(c, f.slice(0, -5))])); };
 // "-" no lugar da pasta do banco: só a lista de produtos ativos (usada pelo e-mail de ruptura)
-if (pastaDb === '-') { writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), produtos })); console.log(`ok: ${produtos.length} produtos ativos`); process.exit(0); }
+if (pastaDb === '-') { writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), produtos, rascunhos })); console.log(`ok: ${produtos.length} produtos ativos, ${rascunhos.length} rascunhos/ocultos`); process.exit(0); }
 const rules = doc('config', 'rules');
 if (!rules || !rules.rules) throw new Error('config/rules não encontrado em ' + pastaDb);
 const enxuga = (L) => L && { items: L.items || {}, importedAt: L.importedAt || null, fileName: L.fileName || null };
@@ -66,6 +68,7 @@ const X = {
   links: (links && links.items) || {},
   shipML: ship ? enxuga(ship) : null,
   produtos,
+  rascunhos,
 };
 writeFileSync(saida, JSON.stringify(X));
 console.log(`ok: ${produtos.length} produtos do Shopify, ${Object.keys(listings).length} planilhas de canal, ${Object.keys(X.links).length} vínculos manuais, ${Object.keys(X.manual.items).length} CMVs manuais`);

@@ -439,8 +439,9 @@ dash.calc('linhas', {
     };
     const estampa = (t) => {
       const x = String(t || '').toLowerCase();
-      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol']];
-      for (const [k, v] of regras) if (x.includes(k)) return v;
+      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol'], [/^livro/, 'Livro'], [/de pano/, 'Bonecos'], [/^meia/, 'Meias'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem']];
+      if (/^(kit |lista vip)/.test(x) && !/^kit de \d+ canetinhas/.test(x)) return 'Kits';
+    for (const [k, v] of regras) if (k instanceof RegExp ? k.test(x) : x.includes(k)) return v;
       return 'Sem estampa';
     };
     const categoriaDe = (titulo, tipo) => {
@@ -549,8 +550,9 @@ dash.calc('giro', {
   fn: (estoque) => {
     const estampa = (t) => {
       const x = String(t || '').toLowerCase();
-      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol']];
-      for (const [k, v] of regras) if (x.includes(k)) return v;
+      const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol'], [/^livro/, 'Livro'], [/de pano/, 'Bonecos'], [/^meia/, 'Meias'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem']];
+      if (/^(kit |lista vip)/.test(x) && !/^kit de \d+ canetinhas/.test(x)) return 'Kits';
+    for (const [k, v] of regras) if (k instanceof RegExp ? k.test(x) : x.includes(k)) return v;
       return 'Sem estampa';
     };
     const tamanho = (v) => {

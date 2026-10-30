@@ -3,7 +3,9 @@
 Todo dia, com a venda fechada até ontem:
 
 1. Consultas do Shopify (`node scripts/build.mjs --consultas`) salvas com `scripts/salvar.mjs` em `.dados/`.
-2. Preços e produtos ativos: `scripts/precos_dados.mjs` (GraphQL do Shopify + banco do Controle de Precificação).
+2. Preços e produtos: `scripts/precos_dados.mjs` (GraphQL do Shopify, sempre a consulta de `--consulta`, que traz ativos,
+   rascunhos e ocultos + banco do Controle de Precificação). Rascunhos e ocultos vão em `rascunhos`: só aparecem na aba
+   Estoque (filtro Rascunhos), sem previsão nem compra; as demais abas usam só os ativos.
 3. Estoque do Bling por depósito: `scripts/bling_estoque.mjs` (`--lotes`, listProducts com id, `--ids`, getStockBalance).
 4. Vendas novas do Mercado Livre: `scripts/ml_vendas.mjs` (`--consulta`, `--novos`, getSalesOrder dos novos, merge).
    Nada de dados pessoais dos compradores.

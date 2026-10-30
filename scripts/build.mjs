@@ -173,6 +173,8 @@ async function main() {
   // Estoque, Compra e Precificação: só produtos ativos no Shopify (a lista vem do arquivo de preços)
   dados.ativos = dados.precos && dados.precos.produtos ? { skus: dados.precos.produtos.flatMap((p) => p.v.map((v) => v[0]).filter(Boolean)), titulos: dados.precos.produtos.map((p) => p.t) } : null;
   if (!dados.estoque_bling) console.warn('Sem estoque_bling.json: o estoque das abas Estoque, Compra e Precificação vem do Shopify.');
+  // rascunhos e ocultos: só na aba Estoque
+  dados.rascunhos = dados.precos && dados.precos.rascunhos && dados.precos.rascunhos.length ? { skus: dados.precos.rascunhos.flatMap((p) => p.v.map((v) => v[0]).filter(Boolean)), titulos: dados.precos.rascunhos.map((p) => p.t) } : null;
   if (!dados.ativos) console.warn('Sem precos.json: as abas de estoque vão incluir rascunhos e arquivados.');
   const tpl = await readFile(path.join(root, 'src', 'painel.html'), 'utf8');
   const d3 = await readFile(path.join(root, 'node_modules', 'd3', 'dist', 'd3.min.js'), 'utf8');

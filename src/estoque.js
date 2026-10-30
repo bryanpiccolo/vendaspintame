@@ -55,6 +55,7 @@
     ok: { t: 'Ok', c: 'var(--color-ok)', o: 3 },
     excesso: { t: 'Excesso', c: 'var(--color-fg-muted)', o: 4 },
     parado: { t: 'Sem venda recente', c: 'var(--color-fg-muted)', o: 5 },
+    rascunho: { t: 'Rascunho ou oculto no Shopify', c: 'var(--color-fg-muted)', o: 6 },
   };
 
   // ---------- indicadores ----------
@@ -166,7 +167,8 @@
   function linhas(v = st.v, generico = false) {
     const dims = v.split('_');
     const meses3 = R.loja.futuros.slice(0, 3).map((f) => f.mes), ms = [mesRef, ...meses3];
-    const its = R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })).filter((i) => i.status);
+    // rascunhos e ocultos do Shopify entram só nesta tabela (sem previsão nem compra)
+    const its = [...R.itens.filter((i) => !fora(i)).map((i) => ({ ...i, status: status(i) })), ...(R.rascunhos || []).filter((i) => !fora(i)).map((i) => ({ ...i, status: 'rascunho' }))].filter((i) => i.status);
     if (v === 'produto_tamanho' && !generico) return its.map((i) => ({ ...i, produto: i.produto + (i.variante !== 'Default Title' && i.tamanho === 'Único' ? ' (' + i.variante + ')' : ''), m1: i.prev_meses[meses3[0]], m2: i.prev_meses[meses3[1]], m3: i.prev_meses[meses3[2]], ...fimCob([i], ms), media3: i.vendas_janela_fechada / P.REGRAS.mesesBase, vj: i.vendas_janela, n: 1 }));
     const acc = new Map();
     for (const i of its) {
@@ -188,8 +190,9 @@
       const cobs = comVenda.map((i) => i.cobertura_dias).filter((c) => c != null);
       a.sell_through = a.vj > 0 ? a.vj / (a.vj + a.estoque) : null;
       const g = { ...a, ...fimCob(a.itens, ms), ruptura: prim ? prim.ruptura : null, rup_quem: prim && prim.ruptura ? (dims.includes('produto') ? 'tam. ' + prim.tamanho : prim.produto.replace(/ Infantil para Colorir| \+ 6 canetinhas/g, '') + (prim.tamanho !== 'Único' ? ' ' + prim.tamanho : '')) : '', rup_n: acabam.length, itens_venda: comVenda.length, cobertura_dias: cobs.length ? Math.min(...cobs) : null };
+      const soRasc = a.itens.every((i) => i.rascunho);
       delete g.itens;
-      g.status = status(g);
+      g.status = soRasc ? 'rascunho' : status(g);
       return g;
     }).filter((g) => g.status);
   }
@@ -219,6 +222,7 @@
     let rows = linhas();
     if (st.f === 'risco') rows = rows.filter((r) => r.comprar > 0 || r.status === 'zerado' || r.status === 'urgente');
     else if (st.f === 'excesso') rows = rows.filter((r) => r.status === 'excesso' || r.status === 'parado');
+    else if (st.f === 'rascunho') rows = rows.filter((r) => r.status === 'rascunho');
     if (st.q) rows = rows.filter((r) => (r.estampa + ' ' + r.categoria + ' ' + r.produto + ' ' + r.tamanho).toLowerCase().includes(st.q));
     const rupK = (r) => r.ruptura === 'agora' ? '0000' : r.ruptura || '9999';
     const sc = st.sort, dir = st.dir;
@@ -263,7 +267,9 @@
         }
         else if (c.st) { const S = STATUS[r.status]; td = el('td', 'pm-txt'); const chip = el('span', 'pm-chip', S.t); chip.style.color = S.c; td.appendChild(chip); if (r.n > 1 && !r.filho) { const t = [r.nZero ? r.nZero + ' sem estoque' : '', r.nRisco ? r.nRisco + ' para comprar' : ''].filter(Boolean).join(' · '); if (t) td.appendChild(el('small', 'pm-sub', t + ' (de ' + r.n + ')')); } }
         else if (c.st2) { td = el('td', '', r.sell_through == null ? '—' : pct.format(r.sell_through).replace('+', '')); if (r.fator && r.fator > 1) td.appendChild(el('small', 'pm-sub', 'compra ×' + String(r.fator).replace('.', ','))); }
+        else if (c.rup && r.status === 'rascunho') td = el('td', '', '—');
         else if (c.rup) { const x = r.ruptura; td = el('td', '', x === 'agora' ? 'sem estoque hoje' : x ? dataBR(x) : (r.status === 'parado' ? '—' : 'depois de ' + curto(R.loja.futuros[5].mes))); if (x && (x === 'agora' || diasAte(x) <= st.prazo)) td.classList.add('pm-bad'); if (r.n > 1 && r.rup_quem) td.appendChild(el('small', 'pm-sub', r.rup_quem + ' primeiro' + (r.rup_n > 1 ? ' · ' + r.rup_n + ' de ' + r.itens_venda + ' acabam até ' + curto(R.loja.futuros[5].mes) : ''))); }
+        else if (r.status === 'rascunho' && c.f !== 'estoque' && c.f !== 'media3') td = el('td', 'pm-mut', '—');
         else {
           td = el('td', '', c.fmt(r[c.f])); if (c.strong && r[c.f] > 0) td.style.fontWeight = 'var(--cds-font-weight-medium)';
           if (c.f === 'estoque' && r.esc != null) td.appendChild(el('small', 'pm-sub', 'escrit. ' + int.format(r.esc) + ' · Correios ' + int.format(r.cor)));
@@ -284,9 +290,9 @@
     const tot = rows.reduce((a, b) => a + b.comprar, 0);
     const tit = { produto_tamanho: 'por produto e tamanho', produto: 'por produto', estampa_tamanho: 'por estampa e tamanho', categoria_tamanho: 'por categoria e tamanho', estampa: 'por estampa', categoria: 'por categoria', tamanho: 'por tamanho' };
     document.getElementById('est-tabela-titulo').textContent = 'Risco de ruptura e compra sugerida ' + tit[v];
-    document.getElementById('est-tabela-nota').textContent = `Estoque hoje = o que existe agora${DADOS.estoque_bling ? ' no Bling' : ' (fim de ' + dataBR(ref) + ')'}. Nas colunas de cada mês: em cima a venda prevista do mês; embaixo o estoque que sobra no último dia do mês, sem contar compras novas, e quantos dias esse estoque cobre a partir dali (laranja abaixo de 30 dias, vermelho zerado; nas linhas agrupadas, a cobertura é a do primeiro tamanho a acabar). Se a compra for feita hoje, chega em ${dataBR(R.chegada)} (${st.prazo} dias). Comprar = venda prevista nos ${st.cobertura} dias depois da chegada (até ${dataBR(R.fimCobertura)}) × fator de sell-through − estoque que ainda sobra no dia da chegada. Passe o mouse no número para ver a conta. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
+    document.getElementById('est-tabela-nota').textContent = `Estoque hoje = o que existe agora${DADOS.estoque_bling ? ' no Bling' : ' (fim de ' + dataBR(ref) + ')'}. Nas colunas de cada mês: em cima a venda prevista do mês; embaixo o estoque que sobra no último dia do mês, sem contar compras novas, e quantos dias esse estoque cobre a partir dali (laranja abaixo de 30 dias, vermelho zerado; nas linhas agrupadas, a cobertura é a do primeiro tamanho a acabar). Se a compra for feita hoje, chega em ${dataBR(R.chegada)} (${st.prazo} dias). Comprar = venda prevista nos ${st.cobertura} dias depois da chegada (até ${dataBR(R.fimCobertura)}) × fator de sell-through − estoque que ainda sobra no dia da chegada. Passe o mouse no número para ver a conta. Ordenado da peça que mais vende para a que menos vende (vendas dos últimos meses + mês atual); clique nos títulos para reordenar${!st.v.includes('tamanho') ? ' e numa linha para ver os tamanhos' : ''}. Produtos em rascunho ou ocultos no Shopify aparecem só em Todos e Rascunhos, com o estoque e sem previsão nem compra. Ficam fora desta lista e dos indicadores: ${FORA.map((f) => f[0].toLowerCase()).join(', ')}.`;
     document.getElementById('est-rodape').textContent = `${int.format(rows.length)} linhas${rows.length > LIM ? ' (mostrando as ' + LIM + ' primeiras)' : ''} · ${int.format(tot)} peças a comprar nesta lista. As variantes de 6 e 12 canetinhas do mesmo tamanho e cor são a mesma peça: as vendas somam e o estoque conta uma vez.`;
-    legenda('est-legenda-status', Object.values(STATUS).filter((s) => s.o < 4 || st.f !== 'risco').map((s) => [s.c, s.t]));
+    legenda('est-legenda-status', Object.values(STATUS).filter((s) => (s.o < 4 || st.f !== 'risco') && (s.o < 6 || st.f === 'todos' || st.f === 'rascunho')).map((s) => [s.c, s.t]));
   }
 
 

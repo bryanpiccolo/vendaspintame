@@ -28,10 +28,10 @@
     if (mlv.status === 'ok') { try { const t = linhas(mlv.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); ml = t ? JSON.parse(t) : null; } catch (e) { ml = null; } }
     // gráfico mês a mês: a venda do Mercado Livre entra em amarelo em cima da do site
     if (ml && window.__mlVendas !== ml) { window.__mlVendas = ml; window.dispatchEvent(new Event('ml-vendas')); }
-    let ativos = null, mlAnuncios = null;
-    if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); if (t) { const J = JSON.parse(t); ativos = window.Previsao.ativosDe(J.produtos); mlAnuncios = J.listings && J.listings.ml ? J.listings.ml : null; } } catch (e) { ativos = null; } }
+    let ativos = null, rascunhos = null, mlAnuncios = null;
+    if (pr.status === 'ok') { try { const t = linhas(pr.data).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); if (t) { const J = JSON.parse(t); ativos = window.Previsao.ativosDe(J.produtos); rascunhos = window.Previsao.ativosDe(J.rascunhos); mlAnuncios = J.listings && J.listings.ml ? J.listings.ml : null; } } catch (e) { ativos = null; } }
     const [mensal, diario, pecas, est] = ds.map((d) => linhas(d.data));
-    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0, semEst ? semEst.length : -1, bling ? bling.gerado_em : '', ml ? ml.gerado_em : ''].join('|');
+    const nova = [mensal.length, diario.length, pecas.length, est.length, diario.length ? String(diario[diario.length - 1].day) : '', ativos ? ativos.skus.length : 0, rascunhos ? rascunhos.titulos.length : 0, semEst ? semEst.length : -1, bling ? bling.gerado_em : '', ml ? ml.gerado_em : ''].join('|');
     if (nova === chave) return;
     const dias = diario.map((r) => ({ day: String(r.day).slice(0, 10), net_items_sold: r.net_items_sold || 0, gross_sales: r.gross_sales || 0, discounts: r.discounts || 0, shipping_charges: r.shipping_charges || 0 }))
       .sort((a, b) => (a.day < b.day ? -1 : 1));
@@ -49,6 +49,7 @@
       produtos: pecas.map((r) => ({ ...r, month: String(r.month).slice(0, 7) })),
       estoque_ontem: est,
       ativos,
+      rascunhos,
       dias_sem_estoque: semEst,
       estoque_bling: bling,
       ml_vendas: ml,

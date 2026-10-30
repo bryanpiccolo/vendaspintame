@@ -40,7 +40,9 @@ export function codigosDe(sku) {
   return [y];
 }
 
-const produtosDe = (arq) => JSON.parse(readFileSync(arq, 'utf8')).produtos || [];
+// ativos + rascunhos/ocultos (a aba Estoque mostra os dois)
+const produtosDe = (arq) => { const j = JSON.parse(readFileSync(arq, 'utf8')); return [...(j.produtos || []), ...(j.rascunhos || []).map((x) => ({ ...x, r: true }))]; };
+// rascunhos sem par no Bling ficam fora (seguem com o estoque do Shopify) e não entram nas conferências
 
 function lotes(arqPrecos) {
   const cod = new Set(['CAN06', 'CAN12']);
@@ -106,11 +108,12 @@ for (const p of produtosDe(precos)) {
     let q = 0, fonte = 'bling';
     if (cods === null) fonte = 'kit sem peça no Bling';
     else {
-      cods.forEach((c) => pedidos.add(pl(c)));
+      if (!p.r) cods.forEach((c) => pedidos.add(pl(c)));
       const vals = cods.map((c) => saldo.get(pl(c)));
       if (vals.some((v) => v == null)) { fonte = /^K/.test(pl(sku)) ? 'peça não ativa no Bling' : 'sem cadastro no Bling'; }
       else q = Math.max(0, Math.min(...vals));
     }
+    if (p.r && fonte !== 'bling') continue;
     if (fonte === 'sem cadastro no Bling') semPar.push(sku); // o Bling é a fonte do estoque: sem cadastro lá = sem estoque (0)
     const [esc, cor] = fonte === 'bling' ? dep(cods) : [0, 0];
     itens.push([p.t, vt, sku, q, esc, cor, cods && cods.length === 1 ? pl(cods[0]) : null]);
@@ -120,7 +123,7 @@ for (const p of produtosDe(precos)) {
 const achados = [...pedidos].filter((c) => saldo.has(c)).length;
 if (!saldo.has('CAN06')) throw new Error('A resposta do Bling não trouxe CAN06: confira se todos os lotes foram salvos.');
 if (achados < pedidos.size * 0.6) throw new Error(`Só ${achados} de ${pedidos.size} códigos voltaram do Bling: confira se todos os lotes foram salvos.`);
-const vazios = lotes(precos).map((l, i) => (l.some((c) => saldo.has(pl(c))) ? null : i + 1)).filter(Boolean);
+const vazios = lotes(precos).map((l, i) => (!l.some((c) => pedidos.has(pl(c))) || l.some((c) => saldo.has(pl(c))) ? null : i + 1)).filter(Boolean);
 if (vazios.length) throw new Error(`Nenhum código do lote ${vazios.join(', ')} voltou do Bling: confira se a resposta desse lote foi salva.`);
 if (pastaDep && porDep.size < achados * 0.8) throw new Error(`Só ${porDep.size} de ${achados} códigos vieram com saldo por depósito: confira se todos os lotes do getStockBalance foram salvos.`);
 writeFileSync(saida, JSON.stringify({ gerado_em: new Date().toISOString(), fonte: 'Bling', campos: ['product_title', 'product_variant_title', 'product_variant_sku', 'ending_inventory_units', 'estoque_escritorio', 'estoque_correios', 'codigo_bling'], depositos: pastaDep ? { escritorio: 'Escritório', correios: 'Correios (Log + Floripa)' } : null, itens, sem_par: semPar, sem_peca: semPeca }));

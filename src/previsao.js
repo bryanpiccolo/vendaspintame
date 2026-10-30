@@ -46,8 +46,9 @@
   };
   const estampa = (t) => {
     const x = String(t || '').toLowerCase();
-    const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol']];
-    for (const [k, v] of regras) if (x.includes(k)) return v;
+    const regras = [['passarinho', 'Voa Passarinho'], ['viagem colorida', 'Viagem Colorida'], ['dia de brincar', 'Dia de Brincar'], ['pets', 'Pets'], ['alfabeto', 'Alfabeto da PINTA'], ['caça-palavras', 'Alfabeto da PINTA'], ['copa do mundo', 'Copa do Mundo / Futebol'], ['futebol', 'Copa do Mundo / Futebol'], ['mergulho', 'Um Mergulho na Ilha'], ['frutaria', 'Frutaria'], ['natal', 'Natal'], ['tangram', 'Tangram'], ['vira!', 'VIRA!'], ['arvoredo', 'Tangram'], ['amarelinho', 'Copa do Mundo / Futebol'], [/^livro/, 'Livro'], [/de pano/, 'Bonecos'], [/^meia/, 'Meias'], [/^kit de \d+ canetinhas/, 'Canetinhas'], [/embalagem|envelope|box presente/, 'Embalagem']];
+    if (/^(kit |lista vip)/.test(x) && !/^kit de \d+ canetinhas/.test(x)) return 'Kits';
+    for (const [k, v] of regras) if (k instanceof RegExp ? k.test(x) : x.includes(k)) return v;
     return 'Sem estampa';
   };
   const nomeLimpo = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -261,6 +262,14 @@
     for (const [k, x] of m) if (!vistos.has(k)) out.push({ month: mes, product_title: x[0], product_variant_title: x[1], product_variant_sku: x[2], ending_inventory_units: x[3], esc: x[4], cor: x[5], codigo_bling: x[6], inventory_units_sold: 0 });
     return out;
   }
+  // Rascunhos e ocultos do Shopify (precos.rascunhos): só entram na aba Estoque, sem previsão nem compra.
+  function noCatalogo(A, i) {
+    if (!A || !A.titulos || !A.titulos.length) return false;
+    if (!A._t) { A._t = new Set(A.titulos.map(nomeLimpo)); A._s = new Set((A.skus || []).map(plano).filter(Boolean)); }
+    if (!A._t.has(i.produto)) return false;
+    const skus = (i.skus || []).map(plano).filter(Boolean);
+    return !skus.length || !A._s.size || skus.some((s) => A._s.has(s));
+  }
   function ativosDe(produtos) {
     if (!Array.isArray(produtos) || !produtos.length) return null;
     return { skus: produtos.flatMap((p) => (p.v || []).map((v) => v[0]).filter(Boolean)), titulos: produtos.map((p) => p.t) };
@@ -319,8 +328,9 @@
     }
     // Só produtos ativos no Shopify (sem rascunhos e arquivados), quando a lista de ativos veio junto (D.ativos).
     // A participação de cada peça é calculada antes, com todas, para não inflar a previsão das que ficam.
+    const rascunhos = D.rascunhos ? itens.filter((i) => !ativo(D.ativos, i) && noCatalogo(D.rascunhos, i) && i.estoque > 0).map((i) => ({ ...i, rascunho: true, share: 0, prev_resto_mes: 0, prev_meses: Object.fromEntries(Object.keys(i.prev_meses).map((k) => [k, 0])), ruptura: null, fim_mes: {}, cob_fim: {}, diaria30: 0, cobertura_dias: null, demanda_horizonte: 0, sobra_chegada: 0, dem_cobertura: 0, necessidade: 0, comprar: 0 })) : [];
     itens = itens.filter((i) => ativo(D.ativos, i));
-    return { loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
+    return { rascunhos, loja: L, gmv: G, itens, dias, meses, chegada: dias[prazo - 1] ? addDias(D.referencia, prazo) : null, fimCobertura: addDias(D.referencia, prazo + cobertura), cortesST: cortes, prazo, cobertura, ref: D.referencia, primeiroDia: addDias(D.referencia, 1) };
   }
 
 
