@@ -413,6 +413,18 @@
       }
       if (m.conv != null && b.conv && m.conv / b.conv - 1 >= 0.15) M.push({ t: 'O quiz ajudou a converter.', d: `Conversão de ${pct2(b.conv)} antes para ${pct2(m.conv)}.` });
     }
+    if (P.tipo === 'lancamento' && P.colecao) {
+      const re = new RegExp(P.colecao, 'i');
+      const novos = P.prods.filter((a) => re.test(a.nome) && a.pecas > 0), tot = P.prods.reduce((x, a) => x + Math.max(0, a.gmv || 0), 0);
+      const gN = novos.reduce((x, a) => x + Math.max(0, a.gmv || 0), 0), pN = novos.reduce((x, a) => x + a.pecas, 0);
+      if (tot > 0) {
+        const sh = gN / tot;
+        (sh >= 0.25 ? M : sh < 0.1 ? A : C).push(sh >= 0.25 ? { t: 'A coleção nova puxou a venda.', d: `${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças, ${brl.format(gN)}).` } : sh < 0.1 ? { t: 'A coleção nova vendeu pouco.', d: `Só ${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças).` } : `${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças, ${brl.format(gN)}).`);
+        if (sh < 0.1) acoes.push('Dar mais vitrine para a coleção nova: banner no topo, e-mail e WhatsApp para a base e criativos dedicados na mídia.');
+        const top = novos.slice().sort((x, y) => y.pecas - x.pecas)[0];
+        if (top) C.push(`Peça do lançamento que mais vendeu: ${top.nome.replace(/ \+ \d+ canetinhas/i, '')} (${n0.format(top.pecas)} peças${top.st != null ? ', sell-through de ' + pct0(top.st) : ''}).`);
+      }
+    }
     // efeito sem a sazonalidade
     const lq = P.liq && P.liq.gmv, ll = P.liq && P.liq.lucro;
     if (lq) {

@@ -5,6 +5,7 @@
     {"id": "dupla", "nome": "Data dupla", "ini": "2026-09-01", "fim": "2026-09-10", "tipo": "pontual", "mecanica": "Descontos pontuais em datas específicas."},
     {"id": "cliente", "nome": "Semana do cliente", "ini": "2026-09-11", "fim": "2026-09-20", "tipo": "progressivo", "mecanica": "15%, 20% e 25% de desconto na compra de 1, 2 ou 3 peças."},
     {"id": "criancas", "nome": "Dia das Crianças", "ini": "2026-09-22", "fim": "2026-10-12", "tipo": "frete", "limiteFrete": 199, "mecanica": "Frete grátis a partir de R$ 199."},
-    {"id": "quiz", "nome": "Quiz da Pinta", "ini": "2026-10-14", "fim": "2026-10-21", "tipo": "cupom", "cupom": 20, "mecanica": "Quiz da Pinta: quem respondia o quiz ganhava cupom de 20% de desconto."}
+    {"id": "quiz", "nome": "Quiz da Pinta", "ini": "2026-10-14", "fim": "2026-10-21", "tipo": "cupom", "cupom": 20, "mecanica": "Quiz da Pinta: quem respondia o quiz ganhava cupom de 20% de desconto."},
+    {"id": "lancamento", "nome": "Lançamento Tangram e VIRA!", "ini": "2026-10-21", "fim": "2026-11-02", "tipo": "lancamento", "colecao": "tangram|arvoredo|vira!", "mecanica": "Lançamento das coleções Tangram (vestido e camiseta Tangram e camiseta Arvoredo) e VIRA! (camisetas Dinos, Obras de Arte e Sorvete)."}
   ]
 }
