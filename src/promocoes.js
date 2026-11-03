@@ -262,7 +262,7 @@
     const cx = (d) => x(d) + x.bandwidth() / 2;
     const linha = d3.line().defined((s) => s.ly != null).x((s) => cx(s.d)).y((s) => y(s.ly));
     svg.append('path').datum(serie).attr('d', linha).attr('fill', 'none').attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 1.5).attr('stroke-dasharray', '4 3');
-    svg.append('path').datum(serie).attr('d', d3.line().x((s) => cx(s.d)).y((s) => y(s.v))).attr('fill', 'none').attr('stroke', 'var(--serie-1)').attr('stroke-width', 2);
+    svg.append('path').datum(serie).attr('d', d3.line().x((s) => cx(s.d)).y((s) => y(s.v))).attr('fill', 'none').attr('stroke', 'var(--serie-1, #3b6fd8)').attr('stroke-width', 2.5).attr('stroke-linejoin', 'round');
     const tip = el('div', 'pm-tip'); tip.hidden = true; box.style.position = 'relative'; box.appendChild(tip);
     const guia = svg.append('line').attr('y1', m.t).attr('y2', H - m.b).attr('stroke', 'var(--cds-chart-axis)').attr('opacity', 0);
     svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.b - m.t).attr('fill', 'transparent')
@@ -275,7 +275,7 @@
       })
       .on('mouseleave', () => { tip.hidden = true; guia.attr('opacity', 0); });
     const leg = document.getElementById('pr-legenda'); leg.replaceChildren();
-    for (const [txt, cor, tr] of [[nome + ' em 2026', 'var(--serie-1)', false], ['Mesmo dia de 2025', 'var(--cds-chart-muted)', true]]) { const s = el('span'); const i = el('i'); i.style.cssText = `display:inline-block;width:14px;height:0;border-top:2px ${tr ? 'dashed' : 'solid'} ${cor};margin-right:6px;vertical-align:middle`; s.append(i, txt); s.style.marginRight = '14px'; leg.appendChild(s); }
+    for (const [txt, cor, tr] of [[nome + ' em 2026', 'var(--serie-1, #3b6fd8)', false], ['Mesmo dia de 2025', 'var(--cds-chart-muted)', true]]) { const s = el('span'); const i = el('i'); i.style.cssText = `display:inline-block;width:14px;height:0;border-top:2px ${tr ? 'dashed' : 'solid'} ${cor};margin-right:6px;vertical-align:middle`; s.append(i, txt); s.style.marginRight = '14px'; leg.appendChild(s); }
   }
 
   // ---------- produtos ----------
