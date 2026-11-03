@@ -141,9 +141,9 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <div class="pm-kpi"><div class="pm-kpi-label">GMV (com frete)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="gmv">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_gmv"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="gmv_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="gmv_ml">—</span></div></div>
     <div class="pm-kpi"><div class="pm-kpi-label">Devoluções</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="devolucoes">—</div><div class="pm-kpi-delta"><span class="pm-k pm-pctdev" data-source="periodos" data-field="devolucoes_pct"></span></div><div class="pm-kpi-canais">só site</div></div>
     <div class="pm-kpi"><div class="pm-kpi-label">Receita líquida</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="receita">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_receita"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="receita_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="receita_ml">—</span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Custo dos produtos (CMV)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="cmv">—</div><div class="pm-kpi-delta"></div><div class="pm-kpi-canais">só site</div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_margem"></span></div><div class="pm-kpi-canais">só site</div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta %</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem_pct">—</div><div class="pm-kpi-delta"></div><div class="pm-kpi-canais">só site</div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Custo dos produtos (CMV)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="cmv">—</div><div class="pm-kpi-delta"></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="cmv_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="cmv_ml">—</span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="margem">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_margem"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="margem_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="margem_ml">—</span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta %</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="margem_pct">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_margem_pct"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="margem_pct_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="margem_pct_ml">—</span></div></div>
   </section>
 
   <section class="pm-card" id="mes-a-mes">
@@ -310,7 +310,7 @@ window.dash = (() => {
     }
     return [...acc.values()];
   };
-  const fontes = { mensal: () => DADOS.mensal, ano_passado: () => DADOS.ano_passado, ontem: () => DADOS.ontem, estados: () => DADOS.estados, estados_ly: () => DADOS.estados_ly, ml_vendas: () => (DADOS.ml_vendas ? [{ j: JSON.stringify(DADOS.ml_vendas) }] : []), produtos: () => prod(params.periodo_produtos), estoque: () => est(params.periodo_estoque) };
+  const fontes = { mensal: () => DADOS.mensal, ano_passado: () => DADOS.ano_passado, ontem: () => DADOS.ontem, estados: () => DADOS.estados, estados_ly: () => DADOS.estados_ly, ml_vendas: () => (DADOS.ml_vendas ? [{ j: JSON.stringify(DADOS.ml_vendas) }] : []), precificacao: () => (DADOS.precos ? [{ j: JSON.stringify(DADOS.precos) }] : []), estoque_bling: () => (DADOS.estoque_bling ? [{ j: JSON.stringify(DADOS.estoque_bling) }] : []), produtos: () => prod(params.periodo_produtos), estoque: () => est(params.periodo_estoque) };
   const calcs = {}, cache = {}, ouvintes = [];
   const valor = (id) => {
     if (id in cache) return cache[id];
@@ -427,14 +427,18 @@ dash.calc('periodos', {
 
 dash.calc('canais', {
   title: 'Site e Mercado Livre por período',
-  description: 'Peças, GMV, receita e pedidos de cada período somando o site (Shopify) e o Mercado Livre (pedidos da loja ML no Bling, sem cancelados), com a parte de cada canal e a variação do total contra o mesmo período do ano anterior.',
-  inputs: ['periodos', 'ml_vendas'],
-  fn: (periodos, ml_vendas) => {
-    let M = null;
-    try { const t = (ml_vendas || []).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); M = t ? JSON.parse(t) : null; } catch (e) { M = null; }
+  description: 'Peças, GMV, receita, pedidos, CMV e margem bruta de cada período somando o site (Shopify) e o Mercado Livre (pedidos da loja ML no Bling, sem cancelados), com a parte de cada canal e a variação do total contra o mesmo período do ano anterior. CMV do ML = custo unitário do Shopify (o mesmo do Controle de Precificação, com os CMVs manuais) da peça de cada item, ligada pelo código do Bling.',
+  inputs: ['periodos', 'ml_vendas', 'precificacao', 'estoque_bling'],
+  fn: (periodos, ml_vendas, precificacao, estoque_bling) => {
+    const arq = (rows) => { try { const t = (rows || []).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); return t ? JSON.parse(t) : null; } catch (e) { return null; } };
+    const M = arq(ml_vendas), PR = arq(precificacao), EB = arq(estoque_bling);
+    // custo por código do Bling: menor custo entre as variantes do Shopify ligadas à peça (versão de 6 canetinhas)
+    const custoSku = new Map(), custo = new Map(), man = (PR && PR.manual && PR.manual.items) || {};
+    for (const pr of (PR && PR.produtos) || []) for (const v of pr.v || []) { const c = man[v[0]] && man[v[0]].cmv != null ? +man[v[0]].cmv : v[3]; if (c != null) custoSku.set(v[0], +c); }
+    for (const it of (EB && EB.itens) || []) { const c = custoSku.get(it[2]); if (it[6] && c != null) custo.set(it[6], Math.min(custo.has(it[6]) ? custo.get(it[6]) : Infinity, c)); }
     const ate = M && M.ate ? M.ate : null;
     const ped = M && Array.isArray(M.pedidos) ? M.pedidos.filter((p) => !ate || p.data <= ate) : [];
-    const soma = (f) => { const o = { pecas: 0, gmv: 0, receita: 0, pedidos: 0 }; for (const p of ped) if (f(p.data)) { o.pedidos += 1; o.gmv += +p.total || 0; o.receita += +p.total || 0; o.pecas += (p.itens || []).reduce((a, i) => a + (+i[1] || 0), 0); } return o; };
+    const soma = (f) => { const o = { pecas: 0, gmv: 0, receita: 0, pedidos: 0, cmv: 0, semCusto: 0 }; for (const p of ped) if (f(p.data)) { o.pedidos += 1; o.gmv += +p.total || 0; o.receita += +p.total || 0; for (const i of p.itens || []) { const q = +i[1] || 0; o.pecas += q; if (custo.has(i[0])) o.cmv += custo.get(i[0]) * q; else o.semCusto += q; } } o.margem = o.receita - o.cmv; return o; };
     const menos1 = (d) => (+d.slice(0, 4) - 1) + d.slice(4);
     const rd = (x) => Math.round(x * 100) / 100;
     return periodos.map((r) => {
@@ -443,13 +447,17 @@ dash.calc('canais', {
       else if (p.startsWith('m:')) { const m = p.slice(2), cur = ate && ate.slice(0, 7) === m, ma = menos1(m); f = (d) => d.slice(0, 7) === m; fa = (d) => d.slice(0, 7) === ma && (!cur || d <= menos1(ate)); }
       else { const a = p.slice(2), cur = ate && ate.slice(0, 4) === a, aa = String(+a - 1); f = (d) => d.slice(0, 4) === a; fa = (d) => d.slice(0, 4) === aa && (!cur || d <= menos1(ate)); }
       const ml = soma(f), mla = soma(fa), o = { periodo: p };
-      for (const k of ['pecas', 'gmv', 'receita', 'pedidos']) {
+      for (const k of ['pecas', 'gmv', 'receita', 'pedidos', 'cmv', 'margem']) {
         const s = r[k] || 0, sa = r[k + '_ant'];
         o[k + '_site'] = rd(s); o[k + '_ml'] = rd(ml[k]); o[k] = rd(s + ml[k]);
         const ta = sa == null ? null : sa + mla[k];
         o[k + '_ant'] = ta == null ? null : rd(ta); o['var_' + k] = ta ? o[k] / ta - 1 : null;
       }
       o.ticket = o.pedidos ? rd(o.gmv / o.pedidos) : null;
+      const mp = (mg, rc) => (rc ? mg / rc : null);
+      o.margem_pct = mp(o.margem, o.receita); o.margem_pct_site = mp(o.margem_site, o.receita_site); o.margem_pct_ml = ml.receita ? mp(o.margem_ml, o.receita_ml) : null;
+      o.margem_pct_ant = o.receita_ant ? mp(o.margem_ant, o.receita_ant) : null; o.var_margem_pct = o.margem_pct != null && o.margem_pct_ant != null ? o.margem_pct - o.margem_pct_ant : null;
+      o.ml_sem_custo = ml.semCusto;
       return o;
     });
   },
