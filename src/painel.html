@@ -28,6 +28,7 @@
 .pm-kpi, .pm-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); }
 .pm-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 .pm-kpi-value { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin-top: var(--cds-gap-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pm-kpi-canais { margin-top: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
 .pm-kpi-delta { margin-top: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; min-height: 1.2em; }
 .pm-up { color: var(--color-ok); } .pm-down { color: var(--color-bad); }
 .pm-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cds-gap-sm); align-items: flex-start; margin-bottom: var(--cds-gap-md); }
@@ -105,12 +106,12 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <h1 class="pm-title">Vendas Pinta Me</h1>
     <p class="pm-window" id="atualizacao"></p>
     <p class="pm-take" id="destaque">
-      Ontem: <span class="dash-skeleton" data-source="periodos" data-field="pecas" data-where="periodo=ontem">—</span> peças e
-      <span class="dash-skeleton" data-source="periodos" data-field="gmv" data-where="periodo=ontem">—</span> de GMV.
-      No mês até ontem: <span class="dash-skeleton pm-h-mes" data-source="periodos" data-field="gmv">—</span> de GMV
-      (<span class="dash-skeleton pm-h-mes" data-source="periodos" data-field="var_gmv">—</span> vs. o mesmo período do ano passado).
-      No ano: <span class="dash-skeleton pm-h-ano" data-source="periodos" data-field="gmv">—</span>
-      (<span class="dash-skeleton pm-h-ano" data-source="periodos" data-field="var_gmv">—</span>).
+      Ontem: <span class="dash-skeleton" data-source="canais" data-field="pecas" data-where="periodo=ontem">—</span> peças e
+      <span class="dash-skeleton" data-source="canais" data-field="gmv" data-where="periodo=ontem">—</span> de GMV.
+      No mês até ontem: <span class="dash-skeleton pm-h-mes" data-source="canais" data-field="gmv">—</span> de GMV
+      (<span class="dash-skeleton pm-h-mes" data-source="canais" data-field="var_gmv">—</span> vs. o mesmo período do ano passado).
+      No ano: <span class="dash-skeleton pm-h-ano" data-source="canais" data-field="gmv">—</span>
+      (<span class="dash-skeleton pm-h-ano" data-source="canais" data-field="var_gmv">—</span>).
     </p>
   </header>
 
@@ -136,13 +137,13 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
   <p class="pm-window" id="janela"></p>
 
   <section class="pm-cards" id="indicadores">
-    <div class="pm-kpi"><div class="pm-kpi-label">Peças vendidas</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="pecas">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_pecas"></span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">GMV (com frete)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="gmv">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_gmv"></span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Devoluções</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="devolucoes">—</div><div class="pm-kpi-delta"><span class="pm-k pm-pctdev" data-source="periodos" data-field="devolucoes_pct"></span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Receita líquida</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="receita">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_receita"></span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Custo dos produtos (CMV)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="cmv">—</div><div class="pm-kpi-delta"></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_margem"></span></div></div>
-    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta %</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem_pct">—</div><div class="pm-kpi-delta"></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Peças vendidas</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="pecas">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_pecas"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="pecas_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="pecas_ml">—</span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">GMV (com frete)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="gmv">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_gmv"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="gmv_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="gmv_ml">—</span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Devoluções</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="devolucoes">—</div><div class="pm-kpi-delta"><span class="pm-k pm-pctdev" data-source="periodos" data-field="devolucoes_pct"></span></div><div class="pm-kpi-canais">só site</div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Receita líquida</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="canais" data-field="receita">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="canais" data-field="var_receita"></span></div><div class="pm-kpi-canais">site <span class="pm-k" data-source="canais" data-field="receita_site">—</span> · ML <span class="pm-k" data-source="canais" data-field="receita_ml">—</span></div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Custo dos produtos (CMV)</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="cmv">—</div><div class="pm-kpi-delta"></div><div class="pm-kpi-canais">só site</div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem">—</div><div class="pm-kpi-delta"><span class="pm-k pm-d" data-source="periodos" data-field="var_margem"></span></div><div class="pm-kpi-canais">só site</div></div>
+    <div class="pm-kpi"><div class="pm-kpi-label">Margem bruta %</div><div class="pm-kpi-value pm-k dash-skeleton" data-source="periodos" data-field="margem_pct">—</div><div class="pm-kpi-delta"></div><div class="pm-kpi-canais">só site</div></div>
   </section>
 
   <section class="pm-card" id="mes-a-mes">
@@ -309,7 +310,7 @@ window.dash = (() => {
     }
     return [...acc.values()];
   };
-  const fontes = { mensal: () => DADOS.mensal, ano_passado: () => DADOS.ano_passado, ontem: () => DADOS.ontem, estados: () => DADOS.estados, estados_ly: () => DADOS.estados_ly, produtos: () => prod(params.periodo_produtos), estoque: () => est(params.periodo_estoque) };
+  const fontes = { mensal: () => DADOS.mensal, ano_passado: () => DADOS.ano_passado, ontem: () => DADOS.ontem, estados: () => DADOS.estados, estados_ly: () => DADOS.estados_ly, ml_vendas: () => (DADOS.ml_vendas ? [{ j: JSON.stringify(DADOS.ml_vendas) }] : []), produtos: () => prod(params.periodo_produtos), estoque: () => est(params.periodo_estoque) };
   const calcs = {}, cache = {}, ouvintes = [];
   const valor = (id) => {
     if (id in cache) return cache[id];
@@ -421,6 +422,36 @@ dash.calc('periodos', {
     }
     out.push(linha('ontem', soma(ontem.map(tot)), null));
     return out;
+  },
+});
+
+dash.calc('canais', {
+  title: 'Site e Mercado Livre por período',
+  description: 'Peças, GMV, receita e pedidos de cada período somando o site (Shopify) e o Mercado Livre (pedidos da loja ML no Bling, sem cancelados), com a parte de cada canal e a variação do total contra o mesmo período do ano anterior.',
+  inputs: ['periodos', 'ml_vendas'],
+  fn: (periodos, ml_vendas) => {
+    let M = null;
+    try { const t = (ml_vendas || []).map((r) => (r && typeof r.j === 'string' ? r.j : '')).join(''); M = t ? JSON.parse(t) : null; } catch (e) { M = null; }
+    const ate = M && M.ate ? M.ate : null;
+    const ped = M && Array.isArray(M.pedidos) ? M.pedidos.filter((p) => !ate || p.data <= ate) : [];
+    const soma = (f) => { const o = { pecas: 0, gmv: 0, receita: 0, pedidos: 0 }; for (const p of ped) if (f(p.data)) { o.pedidos += 1; o.gmv += +p.total || 0; o.receita += +p.total || 0; o.pecas += (p.itens || []).reduce((a, i) => a + (+i[1] || 0), 0); } return o; };
+    const menos1 = (d) => (+d.slice(0, 4) - 1) + d.slice(4);
+    const rd = (x) => Math.round(x * 100) / 100;
+    return periodos.map((r) => {
+      const p = r.periodo; let f, fa;
+      if (p === 'ontem') { f = (d) => d === ate; fa = () => false; }
+      else if (p.startsWith('m:')) { const m = p.slice(2), cur = ate && ate.slice(0, 7) === m, ma = menos1(m); f = (d) => d.slice(0, 7) === m; fa = (d) => d.slice(0, 7) === ma && (!cur || d <= menos1(ate)); }
+      else { const a = p.slice(2), cur = ate && ate.slice(0, 4) === a, aa = String(+a - 1); f = (d) => d.slice(0, 4) === a; fa = (d) => d.slice(0, 4) === aa && (!cur || d <= menos1(ate)); }
+      const ml = soma(f), mla = soma(fa), o = { periodo: p };
+      for (const k of ['pecas', 'gmv', 'receita', 'pedidos']) {
+        const s = r[k] || 0, sa = r[k + '_ant'];
+        o[k + '_site'] = rd(s); o[k + '_ml'] = rd(ml[k]); o[k] = rd(s + ml[k]);
+        const ta = sa == null ? null : sa + mla[k];
+        o[k + '_ant'] = ta == null ? null : rd(ta); o['var_' + k] = ta ? o[k] / ta - 1 : null;
+      }
+      o.ticket = o.pedidos ? rd(o.gmv / o.pedidos) : null;
+      return o;
+    });
   },
 });
 
@@ -611,7 +642,7 @@ dash.calc('giro', {
   const pp = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1, signDisplay: 'exceptZero' });
   const fmt = (f, v) => {
     if (v == null || Number.isNaN(v)) return '—';
-    const base = f.replace(/^(var_|mom_|dif_)/, '').replace(/_ant$/, '');
+    const base = f.replace(/^(var_|mom_|dif_)/, '').replace(/_ant$/, '').replace(/_(site|ml)$/, '');
     if (/^(var_|mom_)/.test(f)) return base.endsWith('_pct') ? pp.format(v * 100) + ' p.p.' : sPct.format(v);
     if (f.startsWith('dif_')) return base.endsWith('_pct') ? pp.format(v * 100) + ' p.p.' : (v > 0 ? '+' : '') + ((base === 'pecas' || base === 'pedidos') ? int.format(v) : brl.format(v));
     if (base === 'pecas' || base === 'pedidos') return int.format(v);
@@ -688,11 +719,13 @@ dash.calc('giro', {
   }
 
   function drawCards(R) {
-    const row = R.find((r) => r.periodo === st.p);
+    const C = dash.data('canais').data || [];
+    const rowS = R.find((r) => r.periodo === st.p), rowC = C.find((r) => r.periodo === st.p);
     const comp = comparacao(st.p);
     document.querySelectorAll('#indicadores .pm-k').forEach((el) => {
       el.setAttribute('data-where', 'periodo=' + st.p);
       el.classList.remove('dash-skeleton');
+      const row = el.dataset.source === 'canais' ? rowC : rowS;
       const f = el.dataset.field, v = row ? row[f] : null;
       if (el.classList.contains('pm-d')) {
         el.className = 'pm-k pm-d' + (v == null ? '' : v > 0 ? ' pm-up' : v < 0 ? ' pm-down' : '');
@@ -706,7 +739,7 @@ dash.calc('giro', {
   function drawHeadline(R) {
     document.querySelectorAll('#destaque span[data-source]').forEach((el) => {
       const k = el.getAttribute('data-where').split('=')[1];
-      const row = R.find((r) => r.periodo === k);
+      const row = (el.dataset.source === 'canais' ? (dash.data('canais').data || []) : R).find((r) => r.periodo === k);
       el.classList.remove('dash-skeleton');
       const f = el.dataset.field;
       el.textContent = row ? fmt(f, row[f]) : (f.startsWith('var_') ? '—' : fmt(f, 0));
