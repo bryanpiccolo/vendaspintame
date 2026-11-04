@@ -78,8 +78,9 @@ for (const r of urg.slice().sort(porNome)) {
   L.push(`- ${nome(r.nome)}: ${quando} - transferir ${r.transf}${antSet.size && !antSet.has(r.k) ? ' [NOVO]' : ''}`);
 }
 L.push('', `SUGESTAO DE TRANSFERENCIA CORREIOS > ESCRITORIO (cobre o ML ate ${br(T.ate)})`);
-for (const r of sug.slice().sort(porNome)) L.push(`${nome(r.nome)} - ${r.transf}`);
-L.push(`Total: ${sug.reduce((a, r) => a + r.transf, 0)} pecas`);
+L.push('Peca - hoje no escritorio - transferir');
+for (const r of sug.slice().sort(porNome)) L.push(`${nome(r.nome)} - escritorio ${r.esc} - transferir ${r.transf}`);
+L.push(`Total: escritorio ${sug.reduce((a, r) => a + r.esc, 0)} - transferir ${sug.reduce((a, r) => a + r.transf, 0)} pecas`);
 if (semNada.length) { L.push('', 'Sem estoque no escritorio nem nos Correios (precisa de compra):'); for (const r of semNada) L.push(`- ${nome(r.nome)}`); }
 L.push('', `Como funciona - O escritorio abastece o Mercado Livre. A sugestao deixa no escritorio no minimo 2 de cada peca do ML (3 do que vendeu no ML) ou a venda prevista do ML para 30 dias, se for maior, e mantem nos Correios a venda prevista do site para 30 dias. Quando nao da para os dois, o estoque e dividido na proporcao da venda de cada canal. Mesma conta do quadro de transferencia da aba Estoque do painel.`);
 const texto = ascii(L.join('\n'));
