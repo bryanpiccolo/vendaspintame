@@ -26,7 +26,7 @@
     ['Casacos, blusões e moletons', /casaco|blus[aã]o|moletom|jaqueta/i],
   ];
   const fora = (i) => FORA.some(([, re]) => re.test(i.produto) || re.test(i.categoria));
-  const st = { m: 'pecas', v: 'produto', e: guarda.le('estampa', ''), abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo2', 22), cobertura: +guarda.le('cobertura', 60) };
+  const st = { m: 'pecas', v: 'produto', e: guarda.le('estampa', ''), pe: guarda.le('pestampa', ''), me: guarda.le('mlestampa', ''), abertos: new Set(), f: 'risco', q: '', sort: null, dir: 1, prazo: +guarda.le('prazo2', 22), cobertura: +guarda.le('cobertura', 60) };
   st.mlN = null; st.mlRes = 30;
   st.pv = ['estampa', 'produto', 'categoria'].includes(guarda.le('pvisao', 'estampa')) ? guarda.le('pvisao', 'estampa') : 'estampa'; st.pm = null;
   let R = null, DADOS = null, ref = '', mesRef = '';
@@ -140,16 +140,21 @@
     }).filter((g) => g.status);
   }
 
+  // filtro por estampa (o mesmo em todos os quadros da aba): lista da estampa que mais vende para a que menos vende
+  function encheEstampas(id, itens, atual) {
+    const sel = document.getElementById(id); if (!sel) return atual;
+    const vendas = new Map();
+    for (const i of itens) if (i.estampa) vendas.set(i.estampa, (vendas.get(i.estampa) || 0) + (i.vendas_janela || i.v || 0));
+    const ests = [...vendas.entries()].sort((a, b) => b[1] - a[1]).map(([e]) => e);
+    if (atual && !ests.includes(atual)) atual = '';
+    if (sel.dataset.lista !== ests.join('|')) { sel.replaceChildren(el('option', '', 'Todas')); sel.firstChild.value = ''; for (const e of ests) { const o = el('option', '', e); o.value = e; sel.appendChild(o); } sel.dataset.lista = ests.join('|'); }
+    sel.value = atual;
+    return atual;
+  }
   function drawTabela() {
     pressed('#est-seg-filtro', 'f', st.f);
     // filtro por estampa: lista das estampas, da que mais vende para a que menos vende
-    const selE = document.getElementById('est-estampa');
-    const vendas = new Map();
-    for (const i of R.itens) if (!fora(i)) vendas.set(i.estampa, (vendas.get(i.estampa) || 0) + (i.vendas_janela || 0));
-    const ests = [...vendas.entries()].sort((a, b) => b[1] - a[1]).map(([e]) => e);
-    if (st.e && !ests.includes(st.e)) st.e = '';
-    if (selE.dataset.lista !== ests.join('|')) { selE.replaceChildren(el('option', '', 'Todas')); selE.firstChild.value = ''; for (const e of ests) { const o = el('option', '', e); o.value = e; selE.appendChild(o); } selE.dataset.lista = ests.join('|'); }
-    selE.value = st.e;
+    st.e = encheEstampas('est-estampa', R.itens.filter((i) => !fora(i)), st.e);
     const cols = [
       { f: 'produto', label: 'Produto', txt: true },
       { f: 'status', label: 'Situação', st: true },
@@ -247,15 +252,19 @@
     const box = document.getElementById('est-promo-mes'); box.replaceChildren();
     for (const k of meses) { const b = el('button', '', k === mesRef ? 'Resto de ' + nomeMes(k, { year: undefined }) : cap(nomeMes(k, { year: undefined }))); b.type = 'button'; b.dataset.m = k; b.setAttribute('aria-pressed', String(k === m)); b.addEventListener('click', () => { st.pm = k; drawPromo(); }); box.appendChild(b); }
     pressed('#est-promo-visao', 'v', st.pv);
+    const base = R.itens.filter((i) => !(PROMO_FORA.test(i.categoria) || PROMO_FORA.test(i.produto)));
+    st.pe = encheEstampas('est-promo-estampa', base, st.pe);
+    // com uma estampa escolhida, a visão por estampa vira uma linha só: mostra por produto
+    const visao = st.pe && st.pv === 'estampa' ? 'produto' : st.pv;
     const acc = new Map();
-    for (const i of R.itens) {
-      if (PROMO_FORA.test(i.categoria) || PROMO_FORA.test(i.produto)) continue;
+    for (const i of base) {
+      if (st.pe && i.estampa !== st.pe) continue;
       const e0 = ini(i), v = venda(i), e1 = Math.max(0, e0 - v);
       if (e0 <= 0 && v <= 0.05) continue;
-      const k = i[st.pv];
+      const k = i[visao];
       let a = acc.get(k); if (!a) { a = { nome: k, e0: 0, v: 0, e1: 0, vj: 0, tam: 0, tamOk: 0, zeram: [] }; acc.set(k, a); }
       a.e0 += e0; a.v += v; a.e1 += e1; a.vj += i.vendas_janela || 0;
-      if (v > 0.05 || e0 > 0) { a.tam++; if (e1 >= 1) a.tamOk++; else if (v > 0.05) a.zeram.push(st.pv === 'produto' ? 'tam. ' + i.tamanho : i.produto.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').trim() + (i.tamanho !== 'Único' ? ' ' + i.tamanho : '')); }
+      if (v > 0.05 || e0 > 0) { a.tam++; if (e1 >= 1) a.tamOk++; else if (v > 0.05) a.zeram.push(visao === 'produto' ? 'tam. ' + i.tamanho : i.produto.replace(/ Infantil para Colorir| para Colorir|\s*\+\s*0?6 canetinhas/gi, '').trim() + (i.tamanho !== 'Único' ? ' ' + i.tamanho : '')); }
     }
     const rows = [...acc.values()].map((a) => {
       a.cob = a.v > 0.05 ? a.e0 / (a.v / diasM) : (a.e0 > 0 ? Infinity : 0);
@@ -265,7 +274,7 @@
     }).sort((x, y) => y.vj - x.vj || y.v - x.v || y.e0 - x.e0);
     const SEL = { boa: ['Boa opção', 'var(--color-ok)'], parado: ['Boa opção (sem venda prevista)', 'var(--color-ok)'], cuidado: ['Com cuidado', 'var(--color-warn)'], evitar: ['Evitar', 'var(--color-bad)'], sem: ['Sem estoque', 'var(--color-bad)'] };
     const nm = nomeMes(m, { year: undefined }), inicio = m === mesRef ? 'Estoque hoje' : 'Estoque em 1º de ' + nm;
-    const cols = [[{ estampa: 'Estampa', produto: 'Produto', categoria: 'Categoria' }[st.pv], 1], ['Para promoção', 1], [inicio, 0], ['Venda prevista ' + (m === mesRef ? 'até o fim de ' : 'em ') + nm, 0], ['Sobra no fim de ' + nm, 0], ['Cobertura no começo', 0], ['Tamanhos com estoque no fim do mês', 1]];
+    const cols = [[{ estampa: 'Estampa', produto: 'Produto', categoria: 'Categoria' }[visao], 1], ['Para promoção', 1], [inicio, 0], ['Venda prevista ' + (m === mesRef ? 'até o fim de ' : 'em ') + nm, 0], ['Sobra no fim de ' + nm, 0], ['Cobertura no começo', 0], ['Tamanhos com estoque no fim do mês', 1]];
     const hr = document.querySelector('#est-promo thead tr'); hr.replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
     const maxC = Math.max(1, ...rows.map((r) => (r.cob === Infinity ? 0 : Math.min(r.cob, 180))));
     const body = rows.map((r) => {
@@ -278,7 +287,7 @@
     });
     document.querySelector('#est-promo tbody').replaceChildren(...body);
     document.getElementById('est-promo-titulo').textContent = 'Estoque para ação promocional em ' + nm;
-    document.getElementById('est-promo-nota').textContent = `Do que mais vende para o que menos vende (vendas dos últimos meses). ${inicio} = o que deve sobrar depois da venda prevista até lá, sem contar compras novas. Cobertura no começo = quantos dias esse estoque dura no ritmo previsto para ${nm}. Boa opção: cobertura de 60 dias ou mais e pelo menos 70% dos tamanhos com estoque até o fim do mês. Evitar: menos de 30 dias ou mais da metade dos tamanhos zerando. Uma promoção vende acima da previsão, então prefira as boas opções. Inclui todos os produtos ativos (também calças, moletons e Copa do Mundo); só vendas do site.`;
+    document.getElementById('est-promo-nota').textContent = `${st.pe ? 'Só a estampa ' + st.pe + (st.pv === 'estampa' ? ', por produto' : '') + '. ' : ''}Do que mais vende para o que menos vende (vendas dos últimos meses). ${inicio} = o que deve sobrar depois da venda prevista até lá, sem contar compras novas. Cobertura no começo = quantos dias esse estoque dura no ritmo previsto para ${nm}. Boa opção: cobertura de 60 dias ou mais e pelo menos 70% dos tamanhos com estoque até o fim do mês. Evitar: menos de 30 dias ou mais da metade dos tamanhos zerando. Uma promoção vende acima da previsão, então prefira as boas opções. Inclui todos os produtos ativos (também calças, moletons e Copa do Mundo); só vendas do site.`;
   }
 
   // ---------- Escritório × Correios: transferência para o Mercado Livre ----------
@@ -298,7 +307,11 @@
     document.getElementById('est-ml-reserva').value = RESERVA;
     const T = P.transferenciaML(DADOS, R, { dias: N, reserva: RESERVA });
     const { saz, mult, ini, fim, ate, AN, MIN, MIN_VENDA } = T;
-    let rows = T.rows;
+    // estampa de cada código do Bling: pelo SKU do Shopify; se não achar, pelo nome
+    if (!st.mlEst || st.mlEst.R !== R) { const m = new Map(); for (const i of R.itens) for (const k of i.skus || []) m.set(String(k).toUpperCase(), i.estampa); st.mlEst = { R, m }; }
+    for (const r of T.rows) r.estampa = st.mlEst.m.get(String(r.k).toUpperCase()) || P.estampa(r.nome);
+    st.me = encheEstampas('est-ml-estampa', T.rows, st.me);
+    let rows = st.me ? T.rows.filter((r) => r.estampa === st.me) : T.rows;
     const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
     const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
     const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Mínimo no escritório', 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
@@ -322,10 +335,10 @@
     // texto para o WhatsApp: produto com tamanho e quantidade a transferir
     const curtoNome = (n) => n.replace(/\s*(Tam\.?|Tamanho)\s*:\s*/gi, ' ').replace(/Cor( Ribana)?\s*:\s*/gi, '').replace(/;/g, ' ').replace(/\s+/g, ' ').trim();
     const lista = rows.filter((r) => r.transf > 0).map((r) => [curtoNome(r.nome), r.transf]).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
-    st.mlTexto = lista.length ? `*Transferir Correios → Escritório* (cobre o ML até ${dataCurta(ate)})\n\n` + lista.map(([n, q]) => `${n} — ${q}`).join('\n') + `\n\n*Total: ${int.format(lista.reduce((a, x) => a + x[1], 0))} peças*` : 'Nada a transferir dos Correios para o escritório.';
+    st.mlTexto = lista.length ? `*Transferir Correios → Escritório*${st.me ? ' - ' + st.me : ''} (cobre o ML até ${dataCurta(ate)})\n\n` + lista.map(([n, q]) => `${n} — ${q}`).join('\n') + `\n\n*Total: ${int.format(lista.reduce((a, x) => a + x[1], 0))} peças*` : 'Nada a transferir dos Correios para o escritório.';
     document.getElementById('est-ml-texto').hidden = true; document.getElementById('est-ml-copiado').textContent = '';
     const res = document.getElementById('est-ml-resumo'); res.replaceChildren();
-    res.append('Transferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (divs.length ? ' ' + divs.length + (divs.length === 1 ? ' peça foi dividida' : ' peças foram divididas') + ' com o site porque os Correios não têm o suficiente para os dois canais.' : '') + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
+    res.append((st.me ? 'Estampa ' + st.me + ': t' : 'T') + 'ransferir dos Correios para o escritório: ', el('strong', '', int.format(totT) + ' peças'), ' em ' + int.format(nT) + ' peças/tamanhos, para o escritório ficar com o mínimo (2 de cada; 3 do que vendeu no ML) e cobrir o Mercado Livre até ' + dataBR(ate) + ' (' + N + ' dias).' + (divs.length ? ' ' + divs.length + (divs.length === 1 ? ' peça foi dividida' : ' peças foram divididas') + ' com o site porque os Correios não têm o suficiente para os dois canais.' : '') + (semTudo.length ? ' ' + semTudo.length + (semTudo.length === 1 ? ' peça não tem' : ' peças não têm') + ' estoque suficiente nem somando os dois depósitos.' : ''));
     const lido = new Date(B.gerado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
     document.getElementById('est-ml-nota').textContent = `O escritório abastece as vendas do Mercado Livre; o resto do estoque fica nos Correios (Log + Floripa). Estoque por depósito lido no Bling em ${lido}. Venda do ML: pedidos da loja Mercado Livre no Bling de ${dataCurta(ini)} a ${dataCurta(fim)} (sem cancelados). Só entram as peças do sortimento do ML: as da planilha de anúncios do ML${AN && AN.importedAt ? ' (importada em ' + new Date(AN.importedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' na aba Precificação)' : ' (aba Precificação)'} e as que já venderam no ML.`;
     document.getElementById('est-ml-rodape').textContent = `Previsão ML = venda por dia no ML (média dos últimos 28 dias; se a última semana vendeu mais, ela conta em dobro, para pegar o que está acelerando) × ${saz.toFixed(2).replace('.', ',')} (sazonalidade: a loja deve vender ${saz >= 1 ? 'mais' : 'menos'} por dia nos próximos ${N} dias do que vendeu nos últimos 28) × ${mult.toFixed(2).replace('.', ',')} (margem) × ${N} dias. Mínimo no escritório = 2 de cada peça e tamanho; 3 se vendeu no ML nos últimos 28 dias; peças novas no ML (Tangram, Arvoredo, Sorvete, Dinos e Obras de Arte) começam com 2-3-3-3-2 nos tamanhos 02 a 10; ou a previsão arredondada para cima, se for maior: quem tende a vender mais fica com mais no escritório. Transferir = o que falta no escritório para chegar ao mínimo, até o que existe nos Correios. Os Correios guardam a venda prevista do site para ${RESERVA} dias (cobertura do site); quando o estoque não dá para os dois canais, ele é dividido na proporção da venda de cada um (ML × site), e o que não vende no ML fica para o site. As de 6 e 12 canetinhas contam como uma.`;
@@ -346,6 +359,8 @@
   document.getElementById('est-prazo').value = st.prazo; document.getElementById('est-cobertura').value = st.cobertura;
   const muda = () => { const p = +document.getElementById('est-prazo').value, c = +document.getElementById('est-cobertura').value; if (!(p >= 0 && c >= 0)) return; st.prazo = Math.min(365, p); st.cobertura = Math.min(365, c); guarda.grava('prazo2', st.prazo); guarda.grava('cobertura', st.cobertura); if (DADOS) { calcula(); desenha(); if (window.CompraAba) window.CompraAba.marcarVelho(); } };
   document.getElementById('est-prazo').addEventListener('change', muda); document.getElementById('est-cobertura').addEventListener('change', muda);
+  document.getElementById('est-promo-estampa').addEventListener('change', (e) => { st.pe = e.target.value; guarda.grava('pestampa', st.pe); drawPromo(); });
+  document.getElementById('est-ml-estampa').addEventListener('change', (e) => { st.me = e.target.value; guarda.grava('mlestampa', st.me); drawML(); });
   document.getElementById('est-estampa').addEventListener('change', (e) => { st.e = e.target.value; guarda.grava('estampa', st.e); st.abertos.clear(); drawTabela(); });
   document.getElementById('est-promo-visao').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.pv = b.dataset.v; guarda.grava('pvisao', st.pv); drawPromo(); } });
   document.getElementById('est-seg-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.f = b.dataset.f; drawTabela(); } });

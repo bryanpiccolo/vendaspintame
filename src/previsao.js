@@ -407,6 +407,6 @@
     return { rows, saz, mult, ini, fim, ate, hoje: hojeEst, N, RESERVA, AN, MIN, MIN_VENDA };
   }
 
-  raiz.Previsao = { REGRAS, calcula, transferenciaML, ativosDe, comBling, loja, pecas, addMes, diasNoMes, addDias };
+  raiz.Previsao = { REGRAS, calcula, transferenciaML, ativosDe, comBling, loja, pecas, addMes, diasNoMes, addDias, estampa };
   if (typeof module !== 'undefined') module.exports = raiz.Previsao;
 })(typeof window !== 'undefined' ? window : globalThis);
