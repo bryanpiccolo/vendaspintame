@@ -314,22 +314,52 @@
     let rows = st.me ? T.rows.filter((r) => r.estampa === st.me) : T.rows;
     const totT = rows.reduce((a, r) => a + (r.transf || 0), 0), nT = rows.filter((r) => r.transf > 0).length;
     const semTudo = rows.filter((r) => r.curto > 0), divs = rows.filter((r) => r.dividido);
-    const cols = [['Peça (código no Bling)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Mínimo no escritório', 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
+    const cols = [['Produto (clique para ver os tamanhos)', 1], ['Venda ML 28 dias', 0], ['Previsão ML até ' + dataCurta(ate), 0], ['Mínimo no escritório', 0], ['Escritório', 0], ['Correios', 0], ['Transferir', 0]];
     document.querySelector('#est-ml thead tr').replaceChildren(...cols.map(([t, tx]) => { const th = el('th', tx ? 'pm-txt' : ''); const sp = el('span', '', t); sp.style.cssText = 'display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);white-space:nowrap'; th.appendChild(sp); return th; }));
-    const body = rows.map((r) => {
+    // agrupado por produto (clique abre os tamanhos), como nos outros quadros
+    const separa = (n) => {
+      const x = String(n).replace(/\s+/g, ' ').trim();
+      let m = x.match(/^(.*?)[\s;]*(?:Tam\.?|Tamanho)\s*:\s*([^;]+?)\s*(?:;\s*(.*))?$/i);
+      if (m) return { p: (m[1] + (m[3] ? ' ' + m[3].replace(/Cor( Ribana)?\s*:\s*/gi, '') : '')).trim(), t: m[2].trim() };
+      m = x.match(/^(.*?)\s+(\d{1,2}|PP|P|M|G|GG|XG|XGG)$/i);
+      return m ? { p: m[1].trim(), t: m[2] } : { p: x, t: '' };
+    };
+    const linhaML = (r, filho, aberto, nT) => {
       const tr = el('tr');
-      const tdN = el('td', 'pm-txt', r.nome); tdN.appendChild(el('small', 'pm-sub', r.k));
+      let tdN;
+      if (filho) { tdN = el('td', 'pm-txt', r.tam ? 'Tamanho ' + r.tam : r.nome); tdN.appendChild(el('small', 'pm-sub', r.k)); tr.className = 'pm-filho'; }
+      else { tdN = el('td', 'pm-txt'); tdN.appendChild(el('span', 'pm-seta', aberto ? '▾ ' : '▸ ')); tdN.appendChild(document.createTextNode(r.nome)); tdN.appendChild(el('small', 'pm-sub', r.n + (r.n === 1 ? ' tamanho' : ' tamanhos') + (nT ? ' · ' + nT + ' para transferir' : ''))); tr.className = 'pm-abre'; tr.title = 'Clique para ver os tamanhos'; }
       const tdP = el('td', '', r.v > 0 ? (r.prev < 10 ? r.prev.toFixed(1).replace('.', ',') : int.format(r.prev)) : '—');
-      const tdM = el('td', '', int.format(r.alvo)); tdM.appendChild(el('small', 'pm-sub', r.alvo > r.minBase ? (r.subiu ? 'pela previsão · vendas subindo' : 'pela previsão') : r.novoML ? 'estoque inicial (novo no ML)' : r.v > 0 ? 'vendeu no ML' : 'sem venda no ML'));
-      const tdE = el('td', '', r.esc == null ? '—' : int.format(r.esc)); if (r.esc != null && r.esc < r.alvo) tdE.classList.add(r.esc === 0 ? 'pm-bad' : 'pm-warn');
+      const tdM = el('td', '', int.format(r.alvo)); if (filho) tdM.appendChild(el('small', 'pm-sub', r.alvo > r.minBase ? (r.subiu ? 'pela previsão · vendas subindo' : 'pela previsão') : r.novoML ? 'estoque inicial (novo no ML)' : r.v > 0 ? 'vendeu no ML' : 'sem venda no ML'));
+      const tdE = el('td', '', r.esc == null ? '—' : int.format(r.esc)); if (filho && r.esc != null && r.esc < r.alvo) tdE.classList.add(r.esc === 0 ? 'pm-bad' : 'pm-warn');
+      if (!filho && r.zeroEsc) tdE.appendChild(el('small', 'pm-sub pm-bad', r.zeroEsc + ' zerado' + (r.zeroEsc > 1 ? 's' : '')));
       const tdC = el('td', '', r.cor == null ? '—' : int.format(r.cor));
       const tdT = el('td', '', r.transf == null ? 'sem dado no Bling' : r.transf > 0 ? int.format(r.transf) : '—'); if (r.transf > 0) tdT.style.fontWeight = 'var(--cds-font-weight-medium)';
-      if (r.dividido) tdT.appendChild(el('small', 'pm-sub pm-warn', (r.v > 0 ? 'dividido com o site' : 'fica para o site') + ' (vende ~' + int.format(Math.max(1, Math.round(r.sd * RESERVA))) + ' em ' + RESERVA + ' dias)'));
-      if (r.curto > 0) { const s = el('small', 'pm-sub pm-bad', r.cor === 0 && r.esc === 0 ? 'sem estoque nos dois' : 'faltam ' + int.format(r.curto) + ' (Correios não tem)'); tdT.appendChild(s); }
+      if (filho && r.dividido) tdT.appendChild(el('small', 'pm-sub pm-warn', (r.v > 0 ? 'dividido com o site' : 'fica para o site') + ' (vende ~' + int.format(Math.max(1, Math.round(r.sd * RESERVA))) + ' em ' + RESERVA + ' dias)'));
+      if (r.curto > 0) tdT.appendChild(el('small', 'pm-sub pm-bad', filho && r.cor === 0 && r.esc === 0 ? 'sem estoque nos dois' : 'faltam ' + int.format(r.curto) + ' (Correios não tem)'));
+      if (!filho && r.nDiv) tdT.appendChild(el('small', 'pm-sub pm-warn', r.nDiv + ' dividido' + (r.nDiv > 1 ? 's' : '') + ' com o site'));
       const tdV = el('td', '', r.v ? int.format(r.v) : '—'); if (r.w) tdV.appendChild(el('small', 'pm-sub' + (r.subiu ? ' pm-warn' : ''), int.format(r.w) + ' nos últimos 7 dias'));
       tr.append(tdN, tdV, tdP, tdM, tdE, tdC, tdT);
       return tr;
-    });
+    };
+    const grupos = new Map();
+    for (const r of rows) {
+      const { p: prod, t } = separa(r.nome); r.tam = t;
+      const kg = prod.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); let g = grupos.get(kg); if (!g) { g = { id: kg, nome: prod, filhos: [], n: 0, v: 0, w: 0, prev: 0, alvo: 0, esc: 0, cor: 0, transf: 0, curto: 0, zeroEsc: 0, nDiv: 0, semDado: false, subiu: false }; grupos.set(kg, g); }
+      g.filhos.push(r); g.n++; g.v += r.v || 0; g.w += r.w || 0; g.prev += r.prev || 0; g.alvo += r.alvo || 0; g.esc += r.esc || 0; g.cor += r.cor || 0; g.curto += r.curto || 0;
+      if (r.transf == null) g.semDado = true; else g.transf += r.transf;
+      if (r.esc === 0) g.zeroEsc++; if (r.dividido) g.nDiv++; if (r.subiu) g.subiu = true;
+    }
+    if (!st.mlAbertos) st.mlAbertos = new Set();
+    const body = [];
+    for (const g of [...grupos.values()].sort((x, y) => y.transf - x.transf || y.curto - x.curto || y.v - x.v || x.nome.localeCompare(y.nome, 'pt-BR'))) {
+      const aberto = st.mlAbertos.has(g.id);
+      if (g.semDado && !g.transf) g.transf = null;
+      const tr = linhaML(g, false, aberto, g.filhos.filter((r) => r.transf > 0).length);
+      tr.addEventListener('click', () => { aberto ? st.mlAbertos.delete(g.id) : st.mlAbertos.add(g.id); drawML(); });
+      body.push(tr);
+      if (aberto) for (const r of g.filhos.slice().sort((a, b) => cmpTam({ tamanho: a.tam }, { tamanho: b.tam }))) body.push(linhaML(r, true));
+    }
     if (!body.length) { const tr = el('tr'); const td = el('td', 'pm-txt', 'Nada a transferir: o escritório já está no mínimo.'); td.colSpan = cols.length; tr.appendChild(td); body.push(tr); }
     document.querySelector('#est-ml tbody').replaceChildren(...body);
     // texto para o WhatsApp: produto com tamanho e quantidade a transferir
