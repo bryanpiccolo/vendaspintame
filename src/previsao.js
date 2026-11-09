@@ -362,9 +362,11 @@
   // mínimo no escritório: 2 de cada peça/tamanho; 3 se vendeu no ML nos 28 dias (ou a previsão, se for maior)
   const MIN = 2, MIN_VENDA = 3;
   // peças que entram no sortimento do ML sem estar na planilha de anúncios, com o estoque inicial no escritório por tamanho
-  // (pedido da Melina em 28/10: Tangram, Arvoredo, Sorvete, Dinos e Obras de Arte)
+  // (pedido da Melina em 28/10: Tangram e Arvoredo; a coleção VIRA! saiu do ML em 09/11)
   const INICIAL = { '02': 2, '04': 3, '06': 3, '08': 3, '10': 2 };
-  const ML_EXTRA = { VETA: INICIAL, CATA: INICIAL, CAAR: INICIAL, CASOR: INICIAL, CADI: INICIAL, CAOA: INICIAL };
+  const ML_EXTRA = { VETA: INICIAL, CATA: INICIAL, CAAR: INICIAL };
+  // fora da transferência para o ML (pedido de 09/11): coleção VIRA! (Dinos, Sorvete, Obras de Arte...)
+  const FORA_ML = /vira!/i;
   const minExtra = (k) => { for (const p in ML_EXTRA) if (k.startsWith(p) && ML_EXTRA[p][k.slice(p.length)] != null) return ML_EXTRA[p][k.slice(p.length)]; return null; };
   const limpa = (e) => (e.prod.replace(/ Infantil para (Colorir|Pintar)| para (Colorir|Pintar)| Infantil|\s*\+\s*\d*\s*canetinhas/gi, '').replace(/\s+/g, ' ').trim() + (e.var && e.var !== 'Default Title' ? ' ' + e.var.split('/').map((x) => x.trim()).filter((x, i) => x && !/canetinha|gr[áa]tis|\+\s*\d/i.test(x) && !(i > 0 && /^(0?6|12)$/.test(x))).join(' ') : '')).trim();
   // fora do mínimo: o que não é peça (copo, livro, kits de canetinhas, embalagem), a não ser que venda no ML
@@ -375,7 +377,7 @@
   const anuncios = AN && AN.items ? Object.keys(AN.items).map(pl).filter(Boolean) : [];
   const vendeuML = new Set(); for (const p of M.pedidos) for (const [c] of p.itens) vendeuML.add(pl(c));
   const noML = (k) => vendeuML.has(k) || minExtra(k) != null || anuncios.some((a) => k === a || (k.startsWith(a) && /^\d{2}$|^(PP|P|M|G|GG)$/.test(k.slice(a.length))));
-  const cods = new Set([...v28.keys(), ...[...est.keys()].filter((k) => noML(k) && !FORA_MIN.test(est.get(k).prod))]);
+  const cods = new Set([...v28.keys(), ...[...est.keys()].filter((k) => noML(k) && !FORA_MIN.test(est.get(k).prod))].filter((k) => !FORA_ML.test((est.get(k) || {}).prod || '') && !FORA_ML.test(nome.get(k) || '')));
   // venda do site por dia em cada código (a previsão da aba; o site sai dos Correios)
   const site = new Map();
   for (const i of R.itens) { const c = i.codigos && i.codigos.length === 1 ? pl(i.codigos[0]) : null; if (c) site.set(c, (site.get(c) || 0) + (i.diaria30 || 0)); }
