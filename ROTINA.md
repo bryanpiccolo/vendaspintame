@@ -14,5 +14,11 @@ Todo dia, com a venda fechada até ontem:
    (`alertas/transferencia_ml`). Se `enviar.txt` = `sim`: confira no Gmail (enviados) que o mesmo assunto não foi
    enviado hoje, envie `email.txt` (texto puro) para comercial@pintame.com.br e grave o novo estado.
 6. Segunda-feira: e-mail semanal de ruptura (`scripts/ruptura_email.mjs`, estado em `alertas/ruptura_semanal`).
-7. Arquivos dos datasets do painel do Claude (estados, historico_produtos, promocoes, precificacao, estoque_bling,
+7. **Foto do estoque (todo dia, antes dos arquivos do painel):**
+   `node scripts/foto_estoque.mjs .dados <fotos_anteriores.json>` com o histórico guardado no painel do Claude
+   (`alertas/fotos_estoque`, campo `json`). Grava `fotos` dentro de `estoque_bling.json`, que a Leitura do analista da
+   aba Estoque usa para mostrar o que é novo no dia e na semana. Depois grave o novo histórico em `alertas/fotos_estoque`.
+   Durante a Black Friday (até 30/11), as consultas de promoção (promo_loja, promo_sessoes, promo_produtos e
+   promo_est do dia) mudam todo dia.
+8. Arquivos dos datasets do painel do Claude (estados, historico_produtos, promocoes, precificacao, estoque_bling,
    ml_vendas) e, por último, `scripts/publicar.sh` (apaga `.dados`).
