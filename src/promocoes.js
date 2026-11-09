@@ -396,8 +396,8 @@
       if (dGmv != null && dGmv < 0.5) { A.push({ t: 'Descontos pontuais não criaram urgência.', d: `GMV por dia ${vr(dGmv)} contra antes, com conversão de ${pct2(m.conv)}.` }); acoes.push('Concentrar a data dupla em 1 ou 2 dias com contagem regressiva, e-mail e WhatsApp para a base, em vez de vários dias de desconto morno.'); }
     }
     if (P.tipo === 'progressivo') {
-      if (m.pecas_pedido != null && b.pecas_pedido && m.pecas_pedido > b.pecas_pedido) { M.push({ t: 'A mecânica progressiva funcionou.', d: `Levou o cliente a comprar mais peças (${n2.format(m.pecas_pedido)} por pedido) e subiu o ticket para ${brl.format(m.ticket)}.` }); acoes.push('Repetir o desconto progressivo na Black Friday e no Natal, com kits prontos de 2 e 3 peças na vitrine para facilitar o "leve mais".'); }
-      if (m.desc_pct != null && m.desc_pct >= 0.15) C.push(`O desconto médio ficou em ${pct1(m.desc_pct)} da venda bruta: o degrau de 25% foi bastante usado.`);
+      if (m.pecas_pedido != null && b.pecas_pedido && m.pecas_pedido > b.pecas_pedido) { M.push({ t: 'A mecânica progressiva funcionou.', d: `Levou o cliente a comprar mais peças (${n2.format(m.pecas_pedido)} por pedido) e subiu o ticket para ${brl.format(m.ticket)}.` }); acoes.push(P.id === 'black' ? 'Manter o progressivo até o Natal e levar os kits prontos de 2 e 3 peças para a vitrine, para facilitar o "leve mais".' : 'Repetir o desconto progressivo na Black Friday e no Natal, com kits prontos de 2 e 3 peças na vitrine para facilitar o "leve mais".'); }
+      if (m.desc_pct != null && m.desc_pct >= 0.15) C.push(`O desconto médio ficou em ${pct1(m.desc_pct)} da venda bruta: o maior degrau do desconto foi bastante usado.`);
     }
     if (P.tipo === 'frete' && P.limiteFrete) {
       if (m.ticket != null && m.ticket < P.limiteFrete) { A.push({ t: 'O mínimo do frete grátis ficou acima do ticket.', d: `Ticket médio de ${brl.format(m.ticket)}, abaixo dos ${brl.format(P.limiteFrete)} do frete grátis: a maioria dos pedidos não alcançou o benefício.` }); acoes.push(`Testar o frete grátis a partir de um valor perto do ticket (${brl.format(Math.round(m.ticket / 10) * 10 - 10)} a ${brl.format(Math.round(m.ticket / 10) * 10)}) ou na compra de 2 peças, com uma barra "faltam R$ X para o frete grátis" no carrinho.`); }
@@ -413,16 +413,17 @@
       }
       if (m.conv != null && b.conv && m.conv / b.conv - 1 >= 0.15) M.push({ t: 'O quiz ajudou a converter.', d: `Conversão de ${pct2(b.conv)} antes para ${pct2(m.conv)}.` });
     }
-    if (P.tipo === 'lancamento' && P.colecao) {
+    if (P.colecao) {
+      const lanc = P.tipo === 'lancamento', oQue = lanc ? 'peças do lançamento' : 'peças em promoção', col = lanc ? 'A coleção nova' : 'A linha em promoção';
       const re = new RegExp(P.colecao, 'i');
       const novos = P.prods.filter((a) => re.test(a.nome) && a.pecas > 0), tot = P.prods.reduce((x, a) => x + Math.max(0, a.gmv || 0), 0);
       const gN = novos.reduce((x, a) => x + Math.max(0, a.gmv || 0), 0), pN = novos.reduce((x, a) => x + a.pecas, 0);
       if (tot > 0) {
         const sh = gN / tot;
-        (sh >= 0.25 ? M : sh < 0.1 ? A : C).push(sh >= 0.25 ? { t: 'A coleção nova puxou a venda.', d: `${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças, ${brl.format(gN)}).` } : sh < 0.1 ? { t: 'A coleção nova vendeu pouco.', d: `Só ${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças).` } : `${pct0(sh)} do GMV do período veio das peças do lançamento (${n0.format(pN)} peças, ${brl.format(gN)}).`);
-        if (sh < 0.1) acoes.push('Dar mais vitrine para a coleção nova: banner no topo, e-mail e WhatsApp para a base e criativos dedicados na mídia.');
+        (sh >= 0.25 ? M : sh < 0.1 ? A : C).push(sh >= 0.25 ? { t: `${col} puxou a venda.`, d: `${pct0(sh)} do GMV do período veio das ${oQue} (${n0.format(pN)} peças, ${brl.format(gN)}).` } : sh < 0.1 ? { t: `${col} vendeu pouco.`, d: `Só ${pct0(sh)} do GMV do período veio das ${oQue} (${n0.format(pN)} peças).` } : `${pct0(sh)} do GMV do período veio das ${oQue} (${n0.format(pN)} peças, ${brl.format(gN)}).`);
+        if (sh < 0.1) acoes.push(lanc ? 'Dar mais vitrine para a coleção nova: banner no topo, e-mail e WhatsApp para a base e criativos dedicados na mídia.' : 'Dar mais vitrine para as peças em promoção: banner no topo, e-mail e WhatsApp para a base e criativos dedicados na mídia.');
         const top = novos.slice().sort((x, y) => y.pecas - x.pecas)[0];
-        if (top) C.push(`Peça do lançamento que mais vendeu: ${top.nome.replace(/ \+ \d+ canetinhas/i, '')} (${n0.format(top.pecas)} peças${top.st != null ? ', sell-through de ' + pct0(top.st) : ''}).`);
+        if (top) C.push(`${lanc ? 'Peça do lançamento' : 'Peça em promoção'} que mais vendeu: ${top.nome.replace(/ \+ \d+ canetinhas/i, '')} (${n0.format(top.pecas)} peças${top.st != null ? ', sell-through de ' + pct0(top.st) : ''}).`);
       }
     }
     // efeito sem a sazonalidade
