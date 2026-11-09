@@ -22,6 +22,8 @@
 .pm-copiar { font: inherit; font-size: var(--cds-font-size-caption); padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
 .pm-copiar:hover { background: color-mix(in srgb, var(--color-fg) 6%, var(--color-panel)); }
 .pm-copia-txt { width: 100%; min-height: 12rem; margin-top: var(--cds-gap-sm); font: inherit; font-size: 0.85rem; padding: 0.5rem; border: 1px solid var(--color-border-line); border-radius: 6px; background: var(--color-panel); color: var(--color-fg); }
+.pm-sel { font: inherit; font-size: var(--cds-font-size-caption); padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); }
+#est-tabela td, #est-tabela th { padding-top: 0.45rem; padding-bottom: 0.45rem; }
 </style>
   <div class="pm-tab" id="aba-estoque" role="tabpanel" hidden>
   <div class="pm-controls">
@@ -30,28 +32,29 @@
   </div>
   <p class="pm-window" id="est-janela"></p>
 
-  <section class="pm-cards" id="est-cards"></section>
-
-  <section class="pm-card">
-    <div class="pm-card-head"><div><h2>Premissas da previsão (peças)</h2><p class="pm-note">As regras usadas e o resultado de cada mês. O GMV segue as mesmas regras.</p></div></div>
-    <div id="est-premissas"></div>
-  </section>
-
-  <section class="pm-card">
+  <section class="pm-card" id="est-risco-card">
     <div class="pm-card-head">
       <div>
-        <h2 id="est-mensal-titulo">Vendas realizadas e previstas</h2>
-        <p class="pm-note">Barras cheias são vendas realizadas; as claras são a previsão. A marca cinza é o mesmo mês do ano anterior. Passe o mouse num mês para ver os números.</p>
-      </div>
-      <div class="pm-seg" id="est-seg-metrica" aria-label="Medida">
-        <button type="button" data-m="pecas">Peças</button>
-        <button type="button" data-m="gmv">GMV</button>
+        <h2 id="est-tabela-titulo">Risco de ruptura e compra sugerida</h2>
+        <p class="pm-note" id="est-tabela-nota"></p>
       </div>
     </div>
-    <div class="pm-legend" id="est-legenda-mensal"></div>
-    <div class="pm-chart" id="est-grafico-mensal"></div>
+    <div class="pm-tools">
+      <label class="pm-field">Estampa <select class="pm-sel" id="est-estampa" aria-label="Filtrar por estampa"><option value="">Todas</option></select></label>
+      <div class="pm-seg" id="est-seg-filtro" aria-label="Mostrar">
+        <button type="button" data-f="risco">Precisa comprar</button>
+        <button type="button" data-f="ruptura">Ruptura</button>
+        <button type="button" data-f="todos">Todos</button>
+        <button type="button" data-f="excesso">Excesso ou sem venda</button>
+        <button type="button" data-f="rascunho">Rascunhos</button>
+      </div>
+      <input class="pm-search" id="est-busca" type="search" placeholder="Buscar produto ou tamanho" aria-label="Buscar no estoque">
+    </div>
+    <div class="pm-tablebox">
+      <table class="pm-table" id="est-tabela"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <p class="pm-note" id="est-rodape"></p>
   </section>
-
 
   <section class="pm-card">
     <div class="pm-card-head">
@@ -95,36 +98,11 @@
   </section>
 
   <section class="pm-card">
-    <div class="pm-card-head">
-      <div>
-        <h2 id="est-tabela-titulo">Risco de ruptura e compra sugerida</h2>
-        <p class="pm-note" id="est-tabela-nota"></p>
-      </div>
-    </div>
-    <div class="pm-tools">
-      <div class="pm-seg" id="est-seg-visao" aria-label="Agrupar por">
-        <button type="button" data-v="produto">Produto</button>
-        <button type="button" data-v="estampa">Estampa</button>
-        <button type="button" data-v="categoria">Categoria</button>
-        <button type="button" data-v="tamanho">Tamanho</button>
-      </div>
-      <div class="pm-seg" id="est-seg-filtro" aria-label="Mostrar">
-        <button type="button" data-f="risco">Precisa comprar</button>
-        <button type="button" data-f="todos">Todos</button>
-        <button type="button" data-f="excesso">Excesso ou sem venda</button>
-        <button type="button" data-f="rascunho">Rascunhos</button>
-      </div>
-      <input class="pm-search" id="est-busca" type="search" placeholder="Buscar produto, estampa ou tamanho" aria-label="Buscar no estoque">
-    </div>
-    <div class="pm-legend" id="est-legenda-status"></div>
-    <div class="pm-tablebox">
-      <table class="pm-table" id="est-tabela"><thead><tr></tr></thead><tbody></tbody></table>
-    </div>
-    <p class="pm-note" id="est-rodape"></p>
-  </section>
-
-  <p class="pm-foot">
+    <div class="pm-card-head"><div><h2>Premissas da previsão (peças)</h2><p class="pm-note">As regras usadas e o resultado de cada mês. O GMV segue as mesmas regras.</p></div></div>
+    <div class="pm-premissas pm-recolher" id="est-premissas"></div>
+    <p class="pm-note">
     <b>Ruptura</b>: dia em que a venda prevista acumulada passa do estoque de hoje. <b>Comprar</b> = venda prevista nos dias de cobertura depois que a compra chega (hoje + prazo de reposição), multiplicada pelo fator de sell-through da peça, menos o estoque que ainda sobra no dia da chegada. A venda que acontece até a chegada sai do estoque atual; o que faltar nesse período não entra na compra. <b>Sell-through</b> = vendas dos últimos meses ÷ (essas vendas + estoque de hoje).
     <b>Limites</b>: só considera as vendas do site; vendas no Mercado Livre e em outros canais também consomem estoque, então o risco real é maior. Peças que ficaram sem estoque nos últimos meses aparecem com venda prevista baixa. Coleções novas (como Natal) não são previstas antes de começarem a vender.
   </p>
+  </section>
   </div>

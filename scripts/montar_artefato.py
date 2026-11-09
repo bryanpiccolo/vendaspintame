@@ -18,7 +18,7 @@ cola = open(repo + '/src/estoque_artefato.js').read()
 promo_js = open(repo + '/src/promocoes.js').read()
 assert promo_js.count('/*PROMO_CFG*/null') == 1
 promo_js = promo_js.replace('/*PROMO_CFG*/null', json.dumps(json.load(open(repo + '/src/promocoes.json')), ensure_ascii=False))
-for t in [open(repo + '/src/previsao.js').read(), open(repo + '/src/fichas.js').read(), open(repo + '/src/estoque.js').read(), open(repo + '/src/compra.js').read(), open(repo + '/src/historico.js').read(), open(repo + '/src/analise.js').read(), cola]:
+for t in [open(repo + '/src/previsao.js').read(), open(repo + '/src/fichas.js').read(), open(repo + '/src/estoque.js').read(), open(repo + '/src/compra.js').read(), open(repo + '/src/historico.js').read(), open(repo + '/src/analise.js').read(), cola, open(repo + '/src/recolher.js').read()]:
     assert '</script' not in t
     if terser:
         t = subprocess.run([terser, '--compress', '--mangle', '--ecma', '2020', '--format', 'ascii_only=true'], input=t, capture_output=True, text=True, check=True).stdout

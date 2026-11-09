@@ -16,7 +16,7 @@
 
   // ---------- desenho ----------
   const css = el('style');
-  css.textContent = '.pm-analise{border-left:3px solid var(--color-fg)}.pm-analise .pm-an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:var(--cds-gap-lg)}.pm-analise h3{font-size:var(--cds-font-size-body);margin:0 0 var(--cds-gap-sm);display:flex;align-items:center;gap:.4rem}.pm-analise h3 i{width:.6rem;height:.6rem;border-radius:50%;display:inline-block}.pm-analise ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:.55rem;font-size:var(--cds-font-size-caption);line-height:1.5}.pm-analise li b{font-weight:var(--cds-font-weight-medium)}.pm-analise .pm-acao{display:block;color:var(--color-fg-muted)}.pm-analise .pm-vazio{color:var(--color-fg-muted);list-style:none;margin-left:-1.1rem}.pm-analise li.pm-an-abre>.pm-an-txt{cursor:pointer}.pm-analise li.pm-an-abre>.pm-an-txt:hover{text-decoration:underline;text-decoration-color:var(--color-fg-muted)}.pm-analise .pm-an-ver{color:var(--color-fg-muted);white-space:nowrap;margin-left:.3rem;font-size:.95em}.pm-analise .pm-an-det{margin:.35rem 0 .2rem;max-height:22rem;overflow:auto;border:1px solid var(--color-border-line);border-radius:6px}.pm-analise .pm-an-det table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption)}.pm-analise .pm-an-det th,.pm-analise .pm-an-det td{padding:3px 8px;border-bottom:1px solid var(--color-border-line);text-align:right;white-space:nowrap}.pm-analise .pm-an-det th:first-child,.pm-analise .pm-an-det td:first-child{text-align:left;white-space:normal;min-width:13rem}.pm-analise .pm-an-det th{position:sticky;top:0;background:var(--color-panel);font-weight:var(--cds-font-weight-medium)}';
+  css.textContent = '.pm-analise{border-left:3px solid var(--color-fg)}.pm-analise .pm-an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:var(--cds-gap-lg)}.pm-analise h3{font-size:var(--cds-font-size-body);margin:0 0 var(--cds-gap-sm);display:flex;align-items:center;gap:.4rem}.pm-analise h3 i{width:.6rem;height:.6rem;border-radius:50%;display:inline-block}.pm-analise ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:.55rem;font-size:var(--cds-font-size-caption);line-height:1.5}.pm-analise li b{font-weight:var(--cds-font-weight-medium)}.pm-analise .pm-acao{display:block;color:var(--color-fg-muted)}.pm-analise .pm-vazio{color:var(--color-fg-muted);list-style:none;margin-left:-1.1rem}.pm-analise li.pm-an-abre>.pm-an-txt{cursor:pointer}.pm-analise li.pm-an-abre>.pm-an-txt:hover{text-decoration:underline;text-decoration-color:var(--color-fg-muted)}.pm-analise .pm-an-ver{color:var(--color-fg-muted);white-space:nowrap;margin-left:.3rem;font-size:.95em}.pm-analise .pm-an-det{margin:.35rem 0 .2rem;max-height:22rem;overflow:auto;border:1px solid var(--color-border-line);border-radius:6px}.pm-analise .pm-an-det table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption)}.pm-analise .pm-an-det th,.pm-analise .pm-an-det td{padding:3px 8px;border-bottom:1px solid var(--color-border-line);text-align:right;white-space:nowrap}.pm-analise .pm-an-det th:first-child,.pm-analise .pm-an-det td:first-child{text-align:left;white-space:normal;min-width:13rem}.pm-analise .pm-an-det th{position:sticky;top:0;background:var(--color-panel);font-weight:var(--cds-font-weight-medium)}.pm-an-tag{display:inline-block;font-size:.66rem;font-weight:var(--cds-font-weight-medium);text-transform:uppercase;letter-spacing:.03em;border-radius:999px;padding:0 .4rem;border:1px solid currentColor;vertical-align:1px}.pm-an-tag-bad{color:var(--color-bad)}.pm-an-tag-warn{color:var(--color-warn)}.pm-an-tag-ok{color:var(--color-ok)}.pm-an-tag-mut{color:var(--color-fg-muted)}';
   document.head.appendChild(css);
 
   function card(id, antesDe) {
@@ -227,52 +227,112 @@
   const tams = (arr) => arr.slice().sort((x, y) => String(x.tamanho).localeCompare(String(y.tamanho), 'pt-BR', { numeric: true })).map((i) => i.tamanho).join(', ');
   const fMeses = (v) => v === Infinity ? 'sem venda' : v == null ? '—' : v > 24 ? 'mais de 24 meses' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v) + ' meses';
 
+  // nome curto de uma peça: "Vestido Voa Passarinho 04"
+  const nomePeca = (produto, tam) => curto(produto, 52) + (tam && !/^(único|default title)$/i.test(tam) ? ' ' + tam : '');
+  const nomeChave = (k) => { const [p, v] = k.split(' | '); return nomePeca(p, (v || '').split(' / ')[0]); };
   function analisaEstoque() {
     const r = window.EstoqueAba && window.EstoqueAba.resultado && window.EstoqueAba.resultado();
     if (!r) return null;
     // embalagem e envelope de presente não recebem ação comercial
     const its = r.itens.filter((i) => (i.share > 0 || i.estoque > 0) && !/embalagem|envelope|sacola/i.test(i.produto));
-    const M = [], A = [];
+    const M = [], A = [], N = [];
     const P = agrupa(its, 'produto').sort((x, y) => y.vj - x.vj);
     const E = agrupa(its, 'estampa').filter((g) => g.nome !== 'Sem estampa').sort((x, y) => y.vj - x.vj);
     const totVj = P.reduce((s, g) => s + g.vj, 0), totEst = P.reduce((s, g) => s + g.estoque, 0);
     const stLoja = totVj + totEst > 0 ? totVj / (totVj + totEst) : 0;
     const cabP = ['Produto', 'Vendidas (janela)', 'Estoque', 'Sell-through', 'Estoque dura', 'Sem estoque', 'Acabam antes da reposição', 'Comprar'];
     const linP = (g) => [curto(g.nome, 60), fInt(g.vj), fInt(g.estoque), fPct(g.st), fMeses(g.meses), tams(g.faltam) || '—', tams(g.acabam) || '—', g.comprar ? fInt(g.comprar) : '—'];
-    const cabE = ['Estampa', 'Produtos', 'Vendidas (janela)', 'Estoque', 'Sell-through', 'Estoque dura', 'Comprar', 'Onde está o estoque'];
-    const onde = (g) => [...(g.porProd || new Map()).entries()].filter(([, q]) => q > 0).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([n, q]) => curto(n, 28) + ' (' + int.format(q) + ')').join('; ');
-    const linE = (g) => [g.nome, g.produtos.size, fInt(g.vj), fInt(g.estoque), fPct(g.st), fMeses(g.meses), g.comprar ? fInt(g.comprar) : '—', onde(g) || '—'];
+    const cabE = ['Estampa', 'Produtos', 'Vendidas (janela)', 'Estoque', 'Sell-through', 'Estoque dura', 'Comprar'];
+    const linE = (g) => [g.nome, g.produtos.size, fInt(g.vj), fInt(g.estoque), fPct(g.st), fMeses(g.meses), g.comprar ? fInt(g.comprar) : '—'];
+    const nomes = (arr, f, n = 4) => arr.slice(0, n).map(f).join(', ') + (arr.length > n ? ' e mais ' + (arr.length - n) : '');
     const comVenda = P.filter((g) => g.vj > 0);
     const topN = comVenda.slice(0, 15);
-    // grade
+
+    // ---------- novidades: compara com a foto de ontem e a de uma semana atrás ----------
+    const fotos = r.fotos || {};
+    const datas = Object.keys(fotos).filter((d) => d < r.ref).sort();
+    const chave = (i) => i.produto + ' | ' + i.variante;
+    const vendem = r.itens.filter((i) => i.share > 0 && !/embalagem|envelope|sacola/i.test(i.produto));
+    const lim = window.Previsao.addDias(r.ref, r.prazo);
+    const agora = {
+      sem: new Set(vendem.filter((i) => i.estoque <= 0).map(chave)),
+      acaba: new Set(vendem.filter((i) => i.estoque > 0 && i.ruptura && i.ruptura !== 'agora' && i.ruptura <= lim).map(chave)),
+      comprar: new Set(vendem.filter((i) => i.comprar > 0).map(chave)),
+    };
+    const porChave = new Map(vendem.map((i) => [chave(i), i]));
+    const nomeK = (k) => { const i = porChave.get(k); return i ? nomePeca(i.produto, i.tamanho !== 'Único' ? i.tamanho : '') : nomeChave(k); };
+    const vendeK = (k) => (porChave.get(k) || {}).vendas_janela || 0;
+    const novos = (cat, ant) => ant && Array.isArray(ant[cat]) ? [...agora[cat]].filter((k) => !ant[cat].includes(k) && !(cat !== 'sem' && Array.isArray(ant.sem) && ant.sem.includes(k))).sort((x, y) => vendeK(y) - vendeK(x)) : null;
+    const sairam = (ant) => ant && Array.isArray(ant.sem) ? ant.sem.filter((k) => !agora.sem.has(k) && porChave.has(k)).sort((x, y) => vendeK(y) - vendeK(x)) : null;
+    const dataBR = (d) => d.slice(8, 10) + '/' + d.slice(5, 7);
+    const ontem = datas.length ? datas[datas.length - 1] : null;
+    const semanaAtras = window.Previsao.addDias(r.ref, -7);
+    const semana = datas.filter((d) => d <= semanaAtras).pop() || datas[0] || null;
+    const cabN = ['Peça', 'Estoque hoje', 'Vendidas (janela)', 'Acaba em'];
+    const linN = (k) => { const i = porChave.get(k); return [nomeK(k), i ? fInt(Math.max(0, i.estoque)) : '—', i ? fInt(i.vendas_janela) : '—', i && i.ruptura ? (i.ruptura === 'agora' ? 'sem estoque' : dataBR(i.ruptura)) : '—']; };
+    const blocoNovo = (quando, ant, rot) => {
+      if (!ant) return;
+      const z = novos('sem', ant), ac = novos('acaba', ant), v = sairam(ant), c = novos('comprar', ant);
+      const it = [];
+      if (z && z.length) it.push({ t: 'Zerou:', d: nomes(z, nomeK), det: { cab: cabN, linhas: z.map(linN) }, tag: quando, cls: 'bad' });
+      if (ac && ac.length) it.push({ t: 'Passou a acabar antes da reposição:', d: nomes(ac, nomeK), det: { cab: cabN, linhas: ac.map(linN) }, tag: quando, cls: 'warn' });
+      if (v && v.length) it.push({ t: 'Voltou ao estoque:', d: nomes(v, nomeK), det: { cab: cabN, linhas: v.map(linN) }, tag: quando, cls: 'ok' });
+      if (c && c.length) it.push({ t: 'Nova compra sugerida:', d: nomes(c, nomeK), det: { cab: cabN, linhas: c.map(linN) }, tag: quando, cls: 'warn' });
+      if (!it.length) it.push({ t: 'Sem mudança', d: 'em ruptura e compra ' + rot + '.', tag: quando, cls: 'mut' });
+      N.push(...it);
+    };
+    blocoNovo('Hoje', ontem ? fotos[ontem] : null, 'desde ' + (ontem ? dataBR(ontem) : 'ontem'));
+    if (semana && semana !== ontem) blocoNovo('Semana', fotos[semana], 'desde ' + dataBR(semana));
+
+    // ---------- pontos de atenção ----------
     const quebrados = topN.filter((g) => g.faltam.length || g.acabam.length);
-    const completos = topN.filter((g) => !g.faltam.length && !g.acabam.length);
-    if (completos.length) M.push({ t: 'Mais vendidos com grade completa.', d: `${completos.length} dos ${topN.length} produtos que mais vendem têm todos os tamanhos com estoque até a chegada de uma compra feita hoje (${r.prazo} dias): ${lista(completos, (g) => curto(g.nome, 34))}.`, a: 'Podem receber mídia e vitrine sem risco de vender tamanho que não tem.', det: { cab: cabP, linhas: completos.map(linP) } });
-    if (quebrados.length) A.push({ t: 'Mais vendidos com grade quebrada.', d: `${quebrados.length} dos ${topN.length} produtos que mais vendem têm tamanho zerado ou que acaba antes da reposição: ${lista(quebrados, (g) => curto(g.nome, 30) + ' (' + tams([...g.faltam, ...g.acabam]) + '; ' + pct(g.shQuebra) + ' da venda do produto)')}.`, a: 'Repor esses tamanhos já. Se o tamanho em falta for grande parte da venda do produto, segurar a mídia do produto até a reposição.', det: { cab: [...cabP, '% da venda nos tamanhos em falta'], linhas: quebrados.map((g) => [...linP(g), fPct(g.shQuebra)]) } });
-    // giro por produto e por estampa
-    const giroP = comVenda.filter((g) => g.st != null && g.st >= Math.max(0.3, stLoja * 1.5) && g.vj >= 20).sort((x, y) => y.st - x.st);
-    if (giroP.length) M.push({ t: 'Produtos de giro rápido.', d: `${giroP.length} produtos com sell-through bem acima da loja (${pct(stLoja)}): ${lista(giroP, (g) => curto(g.nome, 30) + ' (' + pct(g.st) + ')')}.`, a: 'Prioridade na compra e na verba de mídia; a compra sugerida já aplica fator extra para eles.', det: { cab: cabP, linhas: giroP.map(linP) } });
-    const eBoas = E.filter((g) => g.st != null && g.st >= stLoja * 1.2 && g.vj >= 20).sort((x, y) => y.st - x.st);
-    if (eBoas.length) M.push({ t: 'Estampas que giram melhor.', d: `${lista(eBoas, (g) => g.nome + ' (' + pct(g.st) + ' de sell-through)')}; a loja tem ${pct(stLoja)}.`, a: 'Boas estampas para novos modelos e para reposição de tecido.', det: { cab: cabE, linhas: eBoas.map(linE) } });
-    // excesso por produto e por estampa
-    const excP = P.filter((g) => g.estoque >= 30 && (g.meses === Infinity || g.meses >= 6)).sort((x, y) => y.estoque - x.estoque);
-    if (excP.length) A.push({ t: 'Produtos com estoque para muitos meses.', d: `${excP.length} produtos têm estoque para 6 meses ou mais no ritmo atual (ou não vendem), somando ${int.format(excP.reduce((s, g) => s + g.estoque, 0))} peças: ${lista(excP, (g) => curto(g.nome, 30) + ' (' + int.format(g.estoque) + ', ' + fMeses(g.meses) + ')')}.`, a: 'Ação comercial no produto inteiro: desconto, kit ou destaque na vitrine. Não recomprar até girar.', det: { cab: cabP, linhas: excP.map(linP) } });
-    const excE = E.filter((g) => g.estoque >= 50 && (g.meses === Infinity || g.meses >= 6) && !(g.st >= stLoja)).sort((x, y) => y.estoque - x.estoque);
-    if (excE.length) A.push({ t: 'Estampas com estoque alto e giro abaixo da loja.', d: `${lista(excE, (g) => g.nome + ' (' + int.format(g.estoque) + ' peças, ' + fMeses(g.meses) + '; mais em ' + (onde(g).split('; ')[0] || '—') + ')')}.`, a: 'Ação pela estampa (vitrine da coleção, kit da estampa). Se for comprar tecido dela, só para os modelos que estão em falta.', det: { cab: cabE, linhas: excE.map(linE) } });
-    // ritmo
-    const L = r.R.loja;
-    if (L && L.varBase != null) {
-      if (L.varBase < -0.2) A.push({ t: 'Ritmo abaixo do ano passado.', d: `Os 2 últimos meses fechados venderam ${pct(Math.abs(L.varBase))} menos que no ano anterior; a previsão já considera recuperação gradual.`, a: 'Comprar pela previsão, não pelo volume do ano passado, e revisar a previsão no começo de cada mês.' });
-      else if (L.varBase > 0) M.push({ t: 'Ritmo acima do ano passado.', d: `Os 2 últimos meses fechados venderam ${pct(L.varBase)} mais que no ano anterior.` });
-    }
-    // compra por produto
+    if (quebrados.length) A.push({ t: 'Grade quebrada nos mais vendidos:', d: nomes(quebrados, (g) => curto(g.nome, 30) + ' (' + tams([...g.faltam, ...g.acabam]) + ')', 3), a: 'Repor esses tamanhos; segurar mídia se o tamanho for grande parte da venda.', det: { cab: [...cabP, '% da venda nos tamanhos em falta'], linhas: quebrados.map((g) => [...linP(g), fPct(g.shQuebra)]) } });
     const comp = P.filter((g) => g.comprar > 0).sort((x, y) => y.comprar - x.comprar);
-    if (comp.length) {
-      const tot = comp.reduce((s, g) => s + g.comprar, 0), top3 = comp.slice(0, 3);
-      const sh = top3.reduce((s, g) => s + g.comprar, 0) / tot;
-      if (sh >= 0.4) A.push({ t: 'Compra concentrada.', d: `${pct(sh)} das ${int.format(tot)} peças sugeridas estão em 3 produtos: ${lista(top3, (g) => curto(g.nome, 30) + ' (' + int.format(g.comprar) + ')')}.`, a: 'Confirmar a grade com o time antes de fechar o pedido.', det: { cab: [...cabP, '% da compra'], linhas: comp.map((g) => [...linP(g), fPct(g.comprar / tot)]) } });
+    if (comp.length) { const tot = comp.reduce((s, g) => s + g.comprar, 0); A.push({ t: 'Comprar ' + int.format(tot) + ' peças', d: 'em ' + comp.length + ' produtos; mais em ' + nomes(comp, (g) => curto(g.nome, 28) + ' (' + int.format(g.comprar) + ')', 3) + '.', det: { cab: [...cabP, '% da compra'], linhas: comp.map((g) => [...linP(g), fPct(g.comprar / tot)]) } }); }
+    const excP = P.filter((g) => g.estoque >= 30 && (g.meses === Infinity || g.meses >= 6)).sort((x, y) => y.estoque - x.estoque);
+    if (excP.length) A.push({ t: 'Estoque parado (6+ meses):', d: int.format(excP.reduce((s, g) => s + g.estoque, 0)) + ' peças em ' + excP.length + ' produtos; mais em ' + nomes(excP, (g) => curto(g.nome, 28) + ' (' + int.format(g.estoque) + ')', 3) + '.', a: 'Usar em ação promocional (tabela abaixo); não recomprar.', det: { cab: cabP, linhas: excP.map(linP) } });
+    const L = r.R.loja;
+    if (L && L.varBase != null && L.varBase < -0.2) A.push({ t: 'Ritmo ' + pct(Math.abs(L.varBase)) + ' abaixo de 2025', d: 'nos 2 últimos meses fechados; a previsão já considera isso.' });
+
+    // ---------- pontos positivos ----------
+    const completos = topN.filter((g) => !g.faltam.length && !g.acabam.length);
+    if (completos.length) M.push({ t: 'Grade completa em ' + completos.length + ' dos ' + topN.length + ' mais vendidos:', d: nomes(completos, (g) => curto(g.nome, 30), 3) + '.', a: 'Podem receber mídia e vitrine.', det: { cab: cabP, linhas: completos.map(linP) } });
+    const giroP = comVenda.filter((g) => g.st != null && g.st >= Math.max(0.3, stLoja * 1.5) && g.vj >= 20).sort((x, y) => y.st - x.st);
+    if (giroP.length) M.push({ t: 'Giro rápido:', d: nomes(giroP, (g) => curto(g.nome, 30) + ' (' + pct(g.st) + ')', 3) + '; loja ' + pct(stLoja) + '.', det: { cab: cabP, linhas: giroP.map(linP) } });
+    const eBoas = E.filter((g) => g.st != null && g.st >= stLoja * 1.2 && g.vj >= 20).sort((x, y) => y.st - x.st);
+    if (eBoas.length) M.push({ t: 'Estampas que giram melhor:', d: nomes(eBoas, (g) => g.nome + ' (' + pct(g.st) + ')', 3) + '.', det: { cab: cabE, linhas: eBoas.map(linE) } });
+    if (L && L.varBase != null && L.varBase > 0) M.push({ t: 'Ritmo ' + pct(L.varBase) + ' acima de 2025', d: 'nos 2 últimos meses fechados.' });
+
+    const sub = `Venda até ${r.ref.split('-').reverse().join('/')} · compra chega em ${r.prazo} dias e cobre ${r.cobertura}.` + (ontem ? ` Novidades comparadas com a foto de ${dataBR(ontem)}${semana && semana !== ontem ? ' e de ' + dataBR(semana) : ''}.` : ' As novidades do dia aparecem a partir da próxima atualização.') + ' Clique num tópico para ver a lista.';
+    return { sub, n: N, m: M, a: A };
+  }
+
+  // card da aba Estoque: três colunas (Novidades, Atenção, Positivo), tópicos curtos
+  function preencheEstoque(c, x) {
+    if (!c.dataset.novo) {
+      c.dataset.novo = '1';
+      const grid = c.querySelector('.pm-an-grid'); grid.replaceChildren();
+      for (const [k, rot, cor] of [['novo', 'Novidades do dia e da semana', 'var(--serie-1, #3b6fd8)'], ['ajustar', 'Atenção', 'var(--color-warn)'], ['manter', 'Positivo', 'var(--color-ok)']]) {
+        const col = el('div'); const h = el('h3'); const i = el('i'); i.style.background = cor; h.append(i, rot); col.append(h, el('ul', 'pm-an-' + k)); grid.appendChild(col);
+      }
     }
-    return { sub: `Venda até ${r.ref.split('-').reverse().join('/')}, compra que chega em ${r.prazo} dias e cobre ${r.cobertura} dias. Leitura por produto e por estampa (todos os tamanhos juntos); os tamanhos aparecem na lista. Clique numa afirmação para abrir.`, m: M, a: A };
+    preenche(c, x.sub, x.m, x.a);
+    const ul = c.querySelector('.pm-an-novo'); ul.replaceChildren();
+    if (!x.n.length) { ul.appendChild(el('li', 'pm-vazio', 'Sem foto anterior para comparar ainda.')); return; }
+    for (const it of x.n) {
+      const li = el('li'); const txt = el('span', 'pm-an-txt');
+      const tag = el('span', 'pm-an-tag pm-an-tag-' + it.cls, it.tag); txt.append(tag, ' ');
+      txt.appendChild(el('b', '', it.t)); txt.appendChild(document.createTextNode(' ' + it.d)); li.appendChild(txt);
+      if (it.det && it.det.linhas.length) {
+        const chave = c.id + '|n|' + it.tag + it.t; li.classList.add('pm-an-abre');
+        const ver = el('span', 'pm-an-ver'); txt.appendChild(ver); txt.setAttribute('role', 'button'); txt.tabIndex = 0;
+        const mostra = (on) => { ver.textContent = on ? '▴' : '▾ ' + it.det.linhas.length; const old = li.querySelector('.pm-an-det'); if (old) old.remove(); if (on) txt.after(tabelaDet(it.det)); txt.setAttribute('aria-expanded', on); };
+        const troca = () => { const on = !abertos.has(chave); on ? abertos.add(chave) : abertos.delete(chave); mostra(on); };
+        txt.addEventListener('click', troca); txt.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); troca(); } });
+        mostra(abertos.has(chave));
+      }
+      ul.appendChild(li);
+    }
   }
 
   // ---------- quando redesenhar ----------
@@ -281,11 +341,11 @@
     try {
       if (aba === 'produtos' && document.getElementById('detalhe')) { const x = analisaProdutos(); if (x) preenche(card('analise-produtos', document.getElementById('detalhe')), x.sub, x.m, x.a); }
       if (aba === 'estados' && document.getElementById('estados')) { const x = analisaEstados(); if (x) preenche(card('analise-estados', document.getElementById('estados')), x.sub, x.m, x.a); }
-      if (aba === 'estoque' && document.getElementById('est-tabela')) { const alvo = document.getElementById('est-cards'); const x = analisaEstoque(); if (x && alvo) preenche(card('analise-estoque', alvo.nextElementSibling), x.sub, x.m, x.a); }
+      if (aba === 'estoque' && document.getElementById('est-tabela')) { const alvo = document.getElementById('est-risco-card'); const x = analisaEstoque(); if (x && alvo) preencheEstoque(card('analise-estoque', alvo), x); }
     } catch (e) { /* a análise nunca deve quebrar o painel */ console.warn('analise', e); }
   }
   let t = null; const agenda = () => { clearTimeout(t); t = setTimeout(atualiza, 120); };
-  for (const id of ['tabela', 'tabela-giro', 'tabela-estados', 'est-tabela', 'est-cards']) { const e = document.getElementById(id); if (e) new MutationObserver(agenda).observe(e, { childList: true, subtree: true }); }
+  for (const id of ['tabela', 'tabela-giro', 'tabela-estados', 'est-tabela']) { const e = document.getElementById(id); if (e) new MutationObserver(agenda).observe(e, { childList: true, subtree: true }); }
   document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#abas, select, .pm-seg')) agenda(); });
   document.addEventListener('change', agenda);
   setTimeout(agenda, 300);
