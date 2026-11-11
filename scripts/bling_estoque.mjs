@@ -102,6 +102,8 @@ const dep = (cods) => {
 // 2. estoque por variante ativa do Shopify
 const pedidos = new Set(), itens = [], semPar = [], semPeca = [];
 for (const p of produtosDe(precos)) {
+  // kits de presente (várias peças no mesmo SKU): o estoque vem da composição no Bling, não de uma peça só; ficam fora
+  if (/^kit\b/i.test(p.t) && /presente/i.test(p.t)) continue;
   for (const [sku, vt] of p.v) {
     if (!sku) continue;
     const cods = codigosDe(sku);
