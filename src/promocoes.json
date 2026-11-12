@@ -7,6 +7,6 @@
     {"id": "criancas", "nome": "Dia das Crianças", "ini": "2026-09-22", "fim": "2026-10-12", "tipo": "frete", "limiteFrete": 199, "mecanica": "Frete grátis a partir de R$ 199."},
     {"id": "quiz", "nome": "Quiz da Pinta", "ini": "2026-10-14", "fim": "2026-10-20", "tipo": "cupom", "cupom": 20, "mecanica": "Quiz da Pinta: quem respondia o quiz ganhava cupom de 20% de desconto."},
     {"id": "lancamento", "nome": "Lançamento Tangram e VIRA!", "ini": "2026-10-21", "fim": "2026-11-02", "tipo": "lancamento", "colecao": "tangram|arvoredo|vira!", "mecanica": "Lançamento das coleções Tangram (vestido e camiseta Tangram e camiseta Arvoredo) e VIRA! (camisetas Dinos, Obras de Arte e Sorvete)."},
-    {"id": "black", "nome": "Black Friday", "ini": "2026-11-03", "fim": "2026-11-30", "tipo": "progressivo", "colecao": "^(?!estojo mini).*alfabeto da pinta", "degraus": "10%, 15% e 20%", "mecanica": "Desconto progressivo na linha Alfabeto da Pinta: 10%, 15% e 20% na compra de 1, 2 ou 3 peças. Cupom PSIU15 (15% no pedido inteiro) desde 03/11."}
+    {"id": "black", "nome": "Black Friday", "ini": "2026-11-03", "fim": "2026-11-30", "tipo": "progressivo", "colecao": "^(?!estojo mini).*alfabeto da pinta", "degraus": "10%, 15% e 20%", "problema": {"ini": "2026-11-01", "fim": "2026-11-05", "nome": "problema no checkout (compra e desconto no Pix)"}, "mecanica": "Desconto progressivo na linha Alfabeto da Pinta: 10%, 15% e 20% na compra de 1, 2 ou 3 peças. Cupom PSIU15 (15% no pedido inteiro) desde 03/11."}
   ]
 }
