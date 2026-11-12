@@ -154,7 +154,7 @@
     if (!R) calcula();
     if (!R.per.length) { document.getElementById('pr-janela').textContent = 'Nenhum período de promoção até a data dos dados.'; return; }
     document.getElementById('pr-janela').textContent = `Dados até ${D.referencia.split('-').reverse().join('/')}. ${R.promos.length} promoções comparadas com ${R.base ? 'o período antes delas (' + dataBR(R.base.ini) + ' a ' + dataBR(R.base.fim) + ')' : 'entre si'} e com as mesmas datas de 2025.`;
-    drawPeriodos(); drawComparativo(); drawEfeito(); drawGrafico(); drawProdutos(); drawDiagnostico(); drawConclusao();
+    drawPeriodos(); drawComparativo(); drawEfeito(); drawGrafico(); drawProdutos(); drawDiagnostico(); drawConclusao(); drawVigente();
   }
 
   function drawPeriodos() {
@@ -474,6 +474,43 @@
     box.append(h3('Plano de ação'), d.acoes.length ? ol : lis([], 'Manter a mecânica como está.'));
   }
 
+  // ---------- promoção vigente: quem está e quem não está respondendo ----------
+  // Peças por dia na promoção contra as 4 semanas antes dela começar (mesmos produtos, antes do desconto).
+  // Performando: 3 peças ou mais e venda por dia 25% acima das 4 semanas antes, ou produto que não vendia antes.
+  // Não performando: vendia antes, tem 20 peças ou mais em estoque e a venda por dia caiu 25% ou mais.
+  // Kits ficam fora de "não performando" (o estoque deles é o das peças).
+  function drawVigente() {
+    const card = document.getElementById('pr-vigente-card'); if (!card) return;
+    const P = R.promos.find((p) => p.emAndamento) || R.promos[R.promos.length - 1];
+    const box = document.getElementById('pr-vigente'); box.replaceChildren();
+    if (!P) { card.hidden = true; return; }
+    card.hidden = false;
+    const ini0 = addDias(P.ini, -28), fim0 = addDias(P.ini, -1);
+    const antes = new Map();
+    for (const r of D.produtos) { const d = iso(r.day); if (d < ini0 || d > fim0) continue; const k = String(r.product_title || '').replace(/\s+/g, ' ').trim(); antes.set(k, (antes.get(k) || 0) + num(r.net_items_sold)); }
+    document.getElementById('pr-vigente-titulo').textContent = (P.emAndamento ? 'Promoção vigente · ' : 'Última promoção · ') + P.nome;
+    document.getElementById('pr-vigente-nota').textContent = `De ${dataBR(P.ini)} a ${dataBR(P.fim)} (${P.dias} ${P.dias === 1 ? 'dia' : 'dias'}), comparado com as 4 semanas antes de começar (${dataBR(ini0)} a ${dataBR(fim0)}), em peças vendidas por dia. Performando: 3 peças ou mais e venda por dia 25% acima de antes, ou produto que não vendia antes. Não performando: vendia antes, tem 20 peças ou mais em estoque e a venda por dia caiu 25% ou mais. Kits e embalagens ficam fora dessa lista.`;
+    const re = P.colecao ? new RegExp(P.colecao, 'i') : null;
+    const prods = P.prods.filter((a) => a.produto).map((a) => { const b = (antes.get(a.nome) || 0) / 28; return { ...a, b, v: b > 0 ? a.pecas_d / b - 1 : null }; });
+    const T = prods.reduce((s, a) => s + Math.max(0, a.gmv), 0) || 1;
+    const tag = (a) => (re && re.test(a.nome) ? ' · na promoção' : '') + (a.est != null && a.est <= 5 && a.pecas > 0 ? ' · estoque acabando' : '');
+    const bons = prods.filter((a) => a.pecas >= 3 && (a.v == null || a.v >= 0.25)).sort((x, y) => y.gmv - x.gmv).slice(0, 6)
+      .map((a) => ({ t: curto(a.nome), d: `${n0.format(a.pecas)} peças, ${a.v == null ? 'não vendia antes' : vr(a.v) + ' por dia vs antes'}${tag(a)}.` }));
+    const fracos = prods.filter((a) => !/^kit\b/i.test(a.nome) && a.b > 0 && (a.est || 0) >= 20 && a.v <= -0.25).sort((x, y) => (y.b - y.pecas_d) - (x.b - x.pecas_d)).slice(0, 6)
+      .map((a) => ({ t: curto(a.nome), d: `${a.pecas > 0 ? n0.format(a.pecas) + ' peças, ' + vr(a.v) + ' por dia vs antes' : 'nenhuma venda (antes vendia ' + n0.format(antes.get(a.nome)) + ' em 4 semanas)'}; ${n0.format(a.est)} em estoque${tag(a)}.` }));
+    if (re) {
+      const linha = prods.filter((a) => re.test(a.nome) && (a.pecas > 0 || (a.est || 0) > 0));
+      if (linha.length) {
+        const sobe = linha.filter((a) => a.v != null ? a.v > 0 : a.pecas > 0).length;
+        const g = linha.reduce((s, a) => s + Math.max(0, a.gmv), 0);
+        box.appendChild(el('p', 'pm-pr-conclusao', `Linha em promoção: ${sobe} de ${linha.length} produtos vendem mais por dia do que nas 4 semanas antes e somam ${pct0(g / T)} do GMV de produtos do período.`));
+      }
+    }
+    const grid = el('div', 'pm-an-grid');
+    const c1 = el('div'); c1.append(h3('Performando', 'var(--color-ok)'), lis(bons, 'Nenhum produto acima do ritmo de antes neste período.'));
+    const c2 = el('div'); c2.append(h3('Não performando', 'var(--color-bad)'), lis(fracos, 'Nenhum produto caiu de ritmo com estoque sobrando.'));
+    grid.append(c1, c2); box.appendChild(grid);
+  }
   function drawConclusao() {
     const box = document.getElementById('pr-conclusao'); box.replaceChildren();
     const ps = R.promos; if (!ps.length) return;
