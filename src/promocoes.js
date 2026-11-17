@@ -479,49 +479,72 @@
   // Performando: 3 peças ou mais e venda por dia 25% acima das 4 semanas antes, ou produto que não vendia antes.
   // Não performando: vendia antes, tem 20 peças ou mais em estoque e a venda por dia caiu 25% ou mais.
   // Kits ficam fora de "não performando" (o estoque deles é o das peças).
+  // Black Friday e outras promoções com fases (promocoes.json → "fases"): a leitura de produtos olha só a fase atual,
+  // e a tabela separa cada fase (as que já começaram), as 4 semanas antes e as mesmas datas de 2025 da fase atual.
+  const ALFABETO = /^(?!estojo mini).*alfabeto da pinta/i;
+  function fasesDe(P) {
+    if (!Array.isArray(P.fases) || !P.fases.length) return null;
+    const ref = D.referencia;
+    return P.fases.filter((f) => f.ini <= ref).map((f) => { const fim = f.fim > ref ? ref : f.fim; return { ...f, fim, dias: dias(f.ini, fim).length }; });
+  }
   function drawVigente() {
     const card = document.getElementById('pr-vigente-card'); if (!card) return;
     const P = R.promos.find((p) => p.emAndamento) || R.promos[R.promos.length - 1];
     const box = document.getElementById('pr-vigente'); box.replaceChildren();
     if (!P) { card.hidden = true; return; }
     card.hidden = false;
-    const ini0 = addDias(P.ini, -28), fim0 = addDias(P.ini, -1);
+    const FS = fasesDe(P), atual = FS && FS.length ? FS[FS.length - 1] : null;
+    const iniPromo = FS && FS.length ? (FS[0].ini < P.ini ? FS[0].ini : P.ini) : P.ini;
+    const ini0 = addDias(iniPromo, -28), fim0 = addDias(iniPromo, -1);
     const antes = new Map();
     for (const r of D.produtos) { const d = iso(r.day); if (d < ini0 || d > fim0) continue; const k = String(r.product_title || '').replace(/\s+/g, ' ').trim(); antes.set(k, (antes.get(k) || 0) + num(r.net_items_sold)); }
     document.getElementById('pr-vigente-titulo').textContent = (P.emAndamento ? 'Promoção vigente · ' : 'Última promoção · ') + P.nome;
-    document.getElementById('pr-vigente-nota').textContent = `De ${dataBR(P.ini)} a ${dataBR(P.fim)} (${P.dias} ${P.dias === 1 ? 'dia' : 'dias'}), comparado com as 4 semanas antes de começar (${dataBR(ini0)} a ${dataBR(fim0)}), em peças vendidas por dia. Performando: 3 peças ou mais e venda por dia 25% acima de antes, ou produto que não vendia antes. Não performando: vendia antes, tem 20 peças ou mais em estoque e a venda por dia caiu 25% ou mais. Kits e embalagens ficam fora dessa lista.`;
-    const re = P.colecao ? new RegExp(P.colecao, 'i') : null;
-    const prods = P.prods.filter((a) => a.produto).map((a) => { const b = (antes.get(a.nome) || 0) / 28; return { ...a, b, v: b > 0 ? a.pecas_d / b - 1 : null }; });
+    const crit = 'Performando: 3 peças ou mais e venda por dia 25% acima de antes, ou produto que não vendia antes. Não performando: vendia antes, tem 20 peças ou mais em estoque e a venda por dia caiu 25% ou mais. Kits e embalagens ficam fora dessa lista.';
+    document.getElementById('pr-vigente-nota').textContent = atual
+      ? `A promoção está separada em fases. As listas de produtos olham só a fase atual (${atual.nome}, de ${dataBR(atual.ini)} a ${dataBR(atual.fim)}, ${atual.dias} ${atual.dias === 1 ? 'dia' : 'dias'}), comparada com as 4 semanas antes da promoção (${dataBR(ini0)} a ${dataBR(fim0)}), em peças vendidas por dia. ${crit}`
+      : `De ${dataBR(P.ini)} a ${dataBR(P.fim)} (${P.dias} ${P.dias === 1 ? 'dia' : 'dias'}), comparado com as 4 semanas antes de começar (${dataBR(ini0)} a ${dataBR(fim0)}), em peças vendidas por dia. ${crit}`;
+    const colecao = atual ? atual.colecao : P.colecao;
+    const re = colecao ? new RegExp(colecao, 'i') : null;
+    const base = atual ? prodsDoPeriodo({ ini: atual.ini, fim: atual.fim, dias: atual.dias, fimAnterior: null }) : P.prods;
+    const prods = base.filter((a) => a.produto).map((a) => { const b = (antes.get(a.nome) || 0) / 28; return { ...a, b, v: b > 0 ? a.pecas_d / b - 1 : null }; });
     const T = prods.reduce((s, a) => s + Math.max(0, a.gmv), 0) || 1;
     const tag = (a) => (re && re.test(a.nome) ? ' · na promoção' : '') + (a.est != null && a.est <= 5 && a.pecas > 0 ? ' · estoque acabando' : '');
     const bons = prods.filter((a) => a.pecas >= 3 && (a.v == null || a.v >= 0.25)).sort((x, y) => y.gmv - x.gmv).slice(0, 6)
       .map((a) => ({ t: curto(a.nome), d: `${n0.format(a.pecas)} peças, ${a.v == null ? 'não vendia antes' : vr(a.v) + ' por dia vs antes'}${tag(a)}.` }));
     const fracos = prods.filter((a) => !/^kit\b/i.test(a.nome) && a.b > 0 && (a.est || 0) >= 20 && a.v <= -0.25).sort((x, y) => (y.b - y.pecas_d) - (x.b - x.pecas_d)).slice(0, 6)
       .map((a) => ({ t: curto(a.nome), d: `${a.pecas > 0 ? n0.format(a.pecas) + ' peças, ' + vr(a.v) + ' por dia vs antes' : 'nenhuma venda (antes vendia ' + n0.format(antes.get(a.nome)) + ' em 4 semanas)'}; ${n0.format(a.est)} em estoque${tag(a)}.` }));
-    if (P.problema) box.appendChild(analiseFases(P, ini0, fim0, re));
-    if (re) {
-      const linha = prods.filter((a) => re.test(a.nome) && (a.pecas > 0 || (a.est || 0) > 0));
-      if (linha.length) {
-        const sobe = linha.filter((a) => a.v != null ? a.v > 0 : a.pecas > 0).length;
-        const g = linha.reduce((s, a) => s + Math.max(0, a.gmv), 0);
-        box.appendChild(el('p', 'pm-pr-conclusao', `Linha em promoção: ${sobe} de ${linha.length} produtos vendem mais por dia do que nas 4 semanas antes e somam ${pct0(g / T)} do GMV de produtos do período.`));
-      }
+    if (FS && FS.length) box.appendChild(analiseFases(P, FS, ini0, fim0));
+    if (atual && atual.dias < 3) {
+      box.appendChild(el('p', 'pm-note', `A fase atual começou há ${atual.dias} ${atual.dias === 1 ? 'dia' : 'dias'}. As listas de produtos performando e não performando aparecem a partir do 3º dia da fase: antes disso, qualquer produto que ainda não vendeu entraria como não performando.`));
+      return;
+    }
+    const linha = prods.filter((a) => (re ? re.test(a.nome) : !/^kit\b/i.test(a.nome)) && (a.pecas > 0 || (a.est || 0) > 0));
+    if (linha.length && (re || atual)) {
+      const sobe = linha.filter((a) => a.v != null ? a.v > 0 : a.pecas > 0).length;
+      const g = linha.reduce((s, a) => s + Math.max(0, a.gmv), 0);
+      box.appendChild(el('p', 'pm-pr-conclusao', re
+        ? `Linha em promoção${atual ? ' na fase atual' : ''}: ${sobe} de ${linha.length} produtos vendem mais por dia do que nas 4 semanas antes e somam ${pct0(g / T)} do GMV de produtos do período.`
+        : `Site todo em promoção: ${sobe} de ${linha.length} produtos (sem contar kits) vendem mais por dia na fase atual do que nas 4 semanas antes da promoção.`));
     }
     const grid = el('div', 'pm-an-grid');
-    const c1 = el('div'); c1.append(h3('Performando', 'var(--color-ok)'), lis(bons, 'Nenhum produto acima do ritmo de antes neste período.'));
-    const c2 = el('div'); c2.append(h3('Não performando', 'var(--color-bad)'), lis(fracos, 'Nenhum produto caiu de ritmo com estoque sobrando.'));
+    const sufixo = atual ? ' · fase atual' : '';
+    const c1 = el('div'); c1.append(h3('Performando' + sufixo, 'var(--color-ok)'), lis(bons, 'Nenhum produto acima do ritmo de antes neste período.'));
+    const c2 = el('div'); c2.append(h3('Não performando' + sufixo, 'var(--color-bad)'), lis(fracos, 'Nenhum produto caiu de ritmo com estoque sobrando.'));
     grid.append(c1, c2); box.appendChild(grid);
   }
-  // Leitura por fases: 4 semanas antes da promoção × dias com problema no checkout × depois do problema (e as mesmas
-  // datas de 2025). Responde: os produtos da promoção estão saindo? o ticket subiu? a margem caiu? o ritmo está bom?
-  function analiseFases(P, ini0, fim0, re) {
+  // Leitura por fases: 4 semanas antes × cada fase (problema no checkout, coleções selecionadas, site todo…) × mesmas
+  // datas de 2025 da fase atual. Responde: a fase atual está vendendo mais que a anterior e que antes? o ticket subiu?
+  // a margem caiu? quem respondeu: a linha Alfabeto da Pinta ou o resto do site?
+  function analiseFases(P, FS, ini0, fim0) {
     const w = el('div');
-    const pb = P.problema, fimA = pb.fim < P.fim ? pb.fim : P.fim, iniB = addDias(pb.fim, 1);
-    const linhaDia = (ds) => { const set = new Set(ds); let s = 0; if (re) for (const r of D.produtos) { const d = iso(r.day); if (set.has(d) && re.test(String(r.product_title || ''))) s += num(r.net_items_sold); } return ds.length ? s / ds.length : null; };
-    const fase = (nome, ds) => { const m = metricas(ds, R.loja, R.ses); m.linha = linhaDia(ds); m.nome = nome; m.ds = ds; return m; };
-    const F = [fase(`4 semanas antes (${dataBR(ini0)} a ${dataBR(fim0)})`, dias(ini0, fim0)), fase(`${dataBR(pb.ini)} a ${dataBR(fimA)}: ${pb.nome}`, dias(pb.ini, fimA))];
-    const temB = iniB <= P.fim;
-    if (temB) { const dsB = dias(iniB, P.fim); F.push(fase(`${dataBR(iniB)} a ${dataBR(P.fim)}: depois do problema`, dsB)); F.push(fase(`Mesmas datas de 2025 (${dataBR(iniB)} a ${dataBR(P.fim)})`, dsB.map(anoAntes))); F[3].linha = null; }
+    const pecasDia = (ds, filtro) => { const set = new Set(ds); let s = 0; for (const r of D.produtos) { const d = iso(r.day); const t = String(r.product_title || ''); if (set.has(d) && !NAO_PRODUTO.test(t) && filtro(t)) s += num(r.net_items_sold); } return ds.length ? s / ds.length : null; };
+    const fase = (nome, ds, comLinha) => { const m = metricas(ds, R.loja, R.ses); m.alf = comLinha ? pecasDia(ds, (t) => ALFABETO.test(t)) : null; m.resto = comLinha ? pecasDia(ds, (t) => !ALFABETO.test(t)) : null; m.nome = nome; m.ds = ds; return m; };
+    const A = fase(`4 semanas antes (${dataBR(ini0)} a ${dataBR(fim0)})`, dias(ini0, fim0), true);
+    const per = (a, b) => (a === b ? dataBR(a) : `${dataBR(a)} a ${dataBR(b)}`);
+    const FF = FS.map((f) => { const m = fase(`${per(f.ini, f.fim)}: ${f.nome}`, dias(f.ini, f.fim), true); m.f = f; return m; });
+    const X = FF[FF.length - 1];
+    const LY = fase(`Mesmas datas de 2025 (${per(X.f.ini, X.f.fim)})`, X.ds.map(anoAntes), false);
+    const F = [A, ...FF, LY];
     const L = [
       ['GMV por dia', (m) => m.gmv_d, (v) => brl.format(v)],
       ['Pedidos por dia', (m) => m.pedidos_d, (v) => n1.format(v)],
@@ -531,7 +554,8 @@
       ['Peças por pedido', (m) => m.pecas_pedido, (v) => n2.format(v)],
       ['Margem bruta', (m) => m.margem, (v) => pct1(v)],
       ['Desconto (% da venda bruta)', (m) => m.desc_pct, (v) => pct1(v)],
-      ...(re ? [['Peças por dia da linha em promoção', (m) => m.linha, (v) => n1.format(v)]] : []),
+      ['Peças por dia · Alfabeto da Pinta', (m) => m.alf, (v) => n1.format(v)],
+      ['Peças por dia · resto do site', (m) => m.resto, (v) => n1.format(v)],
     ];
     const box = el('div', 'pm-tablebox'); box.style.maxHeight = 'none'; box.style.marginBottom = 'var(--cds-gap-md)';
     const t = el('table', 'pm-table'); const hr = el('tr'); hr.appendChild(el('th', 'pm-txt', ''));
@@ -539,16 +563,22 @@
     const thead = el('thead'); thead.appendChild(hr); const tb = el('tbody');
     for (const [r, f, fmt] of L) { const tr = el('tr'); tr.appendChild(el('td', 'pm-txt', r)); for (const m of F) { const v = f(m); tr.appendChild(el('td', '', v == null || !isFinite(v) ? '—' : fmt(v))); } tb.appendChild(tr); }
     t.append(thead, tb); box.appendChild(t);
-    // veredito: depois do problema (ou, se ainda não há dias depois, os dias com problema) contra as 4 semanas antes
-    const A = F[0], X = temB ? F[2] : F[1], LY = temB ? F[3] : null, PR = F[1];
+    // veredito da fase atual: contra as 4 semanas antes e contra a fase anterior sem problema
+    const ant = FF.slice(0, -1).reverse().find((m) => !m.f.problema) || null;
     const rel = (a, b) => (a != null && b ? a / b - 1 : null);
+    const vsAnt = (a, b) => (ant ? `, ${vr(rel(a, b))} contra a fase anterior` : '');
     const itens = [];
-    if (re && A.linha != null) { const v = rel(X.linha, A.linha); itens.push({ t: v != null && v >= 0.15 ? 'Produtos da promoção estão saindo:' : v != null && v > -0.05 ? 'Produtos da promoção estão no mesmo ritmo:' : 'Produtos da promoção não estão saindo:', d: `${n1.format(X.linha || 0)} peças por dia da linha em promoção, ${vr(v)} contra antes.` }); }
-    { const v = rel(X.ticket, A.ticket), q = rel(X.pecas_pedido, A.pecas_pedido); itens.push({ t: v != null && v >= 0.03 ? 'Ticket subiu:' : v != null && v <= -0.03 ? 'Ticket caiu:' : 'Ticket estável:', d: `${brl.format(X.ticket || 0)} (${vr(v)} contra antes), com ${n2.format(X.pecas_pedido || 0)} peças por pedido (${vr(q)}).` }); }
-    { const d = X.margem != null && A.margem != null ? X.margem - A.margem : null; itens.push({ t: d != null && d <= -0.02 ? 'Margem caiu:' : d != null && d >= 0.02 ? 'Margem subiu:' : 'Margem estável:', d: `${pct1(X.margem)} (${pp(d)} contra antes), com desconto de ${pct1(X.desc_pct)} da venda bruta.` }); }
-    { const v = rel(X.gmv_d, A.gmv_d), l = LY ? rel(X.gmv_d, LY.gmv_d) : null, c = rel(X.conv, A.conv); itens.push({ t: v != null && v >= 0.1 && (l == null || l >= -0.1) ? 'Ritmo de venda bom:' : v != null && v >= 0 ? 'Ritmo de venda morno:' : 'Ritmo de venda fraco:', d: `GMV por dia ${vr(v)} contra antes${l != null ? ' e ' + vr(l) + ' contra as mesmas datas de 2025' : ''}; conversão ${pct2(X.conv)} (${vr(c)} contra antes).` }); }
-    if (temB) { const v = rel(PR.gmv_d, A.gmv_d), c = rel(PR.conv, A.conv); itens.push({ t: `Dias com ${pb.nome}:`, d: `GMV por dia ${vr(v)} e conversão ${vr(c)} contra antes. Esses dias ficam separados para não puxar a leitura da promoção para baixo.` }); }
-    w.append(h3(temB ? 'Leitura da promoção (depois do problema no checkout)' : 'Leitura da promoção', null), lis(itens, ''), h3('Números por fase', null), box);
+    if (X.f.dias < 4) itens.push({ t: `Fase atual com ${X.f.dias} ${X.f.dias === 1 ? 'dia' : 'dias'}:`, d: 'leitura preliminar; um dia forte ou fraco ainda muda bastante as médias.' });
+    if (!X.f.colecao) {
+      const v = rel(X.resto, A.resto);
+      itens.push({ t: v != null && v >= 0.15 ? 'Resto do site respondeu ao desconto:' : v != null && v > -0.05 ? 'Resto do site no mesmo ritmo:' : 'Resto do site não respondeu:', d: `${n1.format(X.resto || 0)} peças por dia fora do Alfabeto da Pinta (${vr(v)} contra antes${vsAnt(X.resto, ant && ant.resto)}).` });
+    }
+    { const v = rel(X.alf, A.alf); itens.push({ t: v != null && v >= 0.15 ? 'Alfabeto da Pinta está saindo:' : v != null && v > -0.05 ? 'Alfabeto da Pinta no mesmo ritmo:' : 'Alfabeto da Pinta não está saindo:', d: `${n1.format(X.alf || 0)} peças por dia (${vr(v)} contra antes${vsAnt(X.alf, ant && ant.alf)}).` }); }
+    { const v = rel(X.ticket, A.ticket), q = rel(X.pecas_pedido, A.pecas_pedido); itens.push({ t: v != null && v >= 0.03 ? 'Ticket subiu:' : v != null && v <= -0.03 ? 'Ticket caiu:' : 'Ticket estável:', d: `${brl.format(X.ticket || 0)} (${vr(v)} contra antes${vsAnt(X.ticket, ant && ant.ticket)}), com ${n2.format(X.pecas_pedido || 0)} peças por pedido (${vr(q)} contra antes).` }); }
+    { const d = X.margem != null && A.margem != null ? X.margem - A.margem : null, da = ant && X.margem != null && ant.margem != null ? X.margem - ant.margem : null; itens.push({ t: d != null && d <= -0.02 ? 'Margem caiu:' : d != null && d >= 0.02 ? 'Margem subiu:' : 'Margem estável:', d: `${pct1(X.margem)} (${pp(d)} contra antes${da != null ? ', ' + pp(da) + ' contra a fase anterior' : ''}), com desconto de ${pct1(X.desc_pct)} da venda bruta.` }); }
+    { const v = rel(X.gmv_d, A.gmv_d), l = rel(X.gmv_d, LY.gmv_d), c = rel(X.conv, A.conv); itens.push({ t: v != null && v >= 0.1 && (l == null || l >= -0.1) ? 'Ritmo de venda bom:' : v != null && v >= 0 ? 'Ritmo de venda morno:' : 'Ritmo de venda fraco:', d: `GMV por dia ${vr(v)} contra antes${vsAnt(X.gmv_d, ant && ant.gmv_d)}${l != null ? ' e ' + vr(l) + ' contra as mesmas datas de 2025' : ''}; conversão ${pct2(X.conv)} (${vr(c)} contra antes${vsAnt(X.conv, ant && ant.conv)}).` }); }
+    for (const m of FF) if (m.f.problema && m !== X) { const v = rel(m.gmv_d, A.gmv_d), c = rel(m.conv, A.conv); itens.push({ t: `Dias com ${m.f.nome}${m.f.obs ? ' (' + m.f.obs + ')' : ''}:`, d: `GMV por dia ${vr(v)} e conversão ${vr(c)} contra antes. Esses dias ficam separados para não puxar a leitura das outras fases para baixo.` }); }
+    w.append(h3(`Leitura da fase atual: ${X.f.nome}`, null), lis(itens, ''), h3('Números por fase', null), box);
     return w;
   }
   function drawConclusao() {
